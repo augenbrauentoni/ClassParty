@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: class-party-spiel
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node PartySpiel.js --no-tunnel
+    envVars:
+      - key: NODE_ENV
+        value: production

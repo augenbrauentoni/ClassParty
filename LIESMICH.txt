@@ -1,0 +1,65 @@
+===================================================================
+PARTY-SPIEL ("Class Party") - 2D Party-Brettspiel fuer Schulklassen
+(100% Reine Web-Anwendung / Serverless Online-Hosting & WebRTC P2P)
+===================================================================
+
+🌟 NEUE ARCHITEKTUR: 100% BROWSERBASIERT & DAUERHAFT ONLINE HOSTBAR
+Das gesamte Spiel laeuft ab sofort als reine statische Web-Anwendung (HTML5 / CSS3 / JavaScript).
+Es ist KEINE Server-Einrichtung, kein Node.js und kein Tunnel auf den Geraeten der Schueler erforderlich!
+Der Spielleiter oeffnet die Webseite einfach im Browser, erstellt einen Raum und teilt den Link.
+
+-------------------------------------------------------------------
+OPTION A: DAUERHAFT KOSTENLOS IM INTERNET BEREITSTELLEN (EMPFOHLEN)
+-------------------------------------------------------------------
+Du kannst das Spiel auf jeder kostenlosen Hosting-Plattform innerhalb von 60 Sekunden veroeffentlichen:
+
+1. GITHUB PAGES (Dauerhafter Link: https://<dein-name>.github.io/<repo>/):
+   - Lade den gesamten Inhalt dieses Ordners in ein GitHub-Repository hoch (z. B. via Git oder GitHub Desktop).
+   - Gehe im Repository auf: "Settings" -> "Pages".
+   - Waehle unter "Build and deployment" -> Source: "Deploy from a branch".
+   - Waehle Branch "main" und Ordner "/ (root)".
+   - Klicke auf "Save". Nach ca. 1 Minute ist dein Spiel unter dem dauerhaften HTTPS-Link online!
+
+2. NETLIFY (1-Klick Drag & Drop: https://app.netlify.com/drop):
+   - Oeffne https://app.netlify.com/drop
+   - Ziehe einfach diesen gesamten Projektordner per Drag & Drop in das Browserfenster.
+   - Du erhaeltst sofort eine dauerhafte, kostenlose Web-Adresse (z. B. https://class-party-spiel.netlify.app)!
+   - Die beiliegende Datei 'netlify.toml' ist bereits optimal konfiguriert.
+
+3. VERCEL (1-Klick Import: https://vercel.com):
+   - Importiere das GitHub-Repository oder nutze die Vercel CLI.
+   - Die beiliegende Datei 'vercel.json' sorgt automatisch fuer perfekte Auslieferung.
+
+-------------------------------------------------------------------
+OPTION B: LOKAL AUF DEM PC STARTEN
+-------------------------------------------------------------------
+Falls du das Spiel lokal oder fuer Tests starten moechtest:
+   👉 Doppelklicke auf 'PartySpiel.bat' (oder oeffne 'index.html' direkt im Browser).
+
+-------------------------------------------------------------------
+ONLINE-MULTIPLAYER & RAUM-SYSTEM (WEBRTC P2P CLOUD):
+-------------------------------------------------------------------
+- Raum erstellen: Der Spielleiter klickt auf "Neues Spiel hosten" -> "Raum erstellen".
+  Ein 4-stelliger Raum-Code (z. B. "7K9A") und der passende Einladungs-Link werden automatisch generiert.
+- 1-Klick Microsoft Teams Einladung:
+  Klicke auf "Teams-Text kopieren" oder "Link kopieren", um den Einladungstext samt Link und Code direkt in den Klassen-Chat einzufuegen.
+- Schnellbeitritt: Mitschueler oeffnen den Link auf Smartphone, Tablet, Laptop oder PC, waehlen ihren Avatar, geben ihren Namen ein und sind sofort in der Runde.
+- Browser-P2P: Die Kommunikation laeuft direkt und verschluesselt ueber WebRTC DataChannels (PeerJS Cloud Relay) – blitzschnell und ohne eigenen Server!
+
+-------------------------------------------------------------------
+INTEGRIERTE FEATURES:
+-------------------------------------------------------------------
+1. Grafische Avatar-Auswahl:
+   - 9 handgefertigte Klassen-Charaktere (PC-Schrauber, Feuerwehr, Chill-Cap, Goldkette, Drachen-Koenigin, Schoko-Coder, Doritos-Gamer, Langhaar-Dude, Ultra-Goku).
+   - Live-Wechsel im Startmenue und in der Raum-Lobby.
+2. Item-Shop (Nuetzlich & Fun):
+   - Hilfreiche Items: Doppelwuerfel, Schutzschild gegen Punkteklau, Wunschwuerfel, Warp-Rohr.
+   - Gag-Items: Konfetti-Regen, Party-Hupe, Riesenkopf-Effekt, Disco-Tanz (synchronisiert fuer alle!).
+3. Minispiel-Tutorials:
+   - Vor jedem der 13 Minispiele erscheint automatisch ein uebersichtlicher Erklaerungsbildschirm mit Spielziel, Regeln und 3D-Tastaturbelegung.
+4. Stabiler Abbruch (Disconnect-Sicherheit):
+   - Schliesst ein Schueler den Browser oder verliert die Verbindung, wird sein Slot automatisch zum Bot umgewandelt.
+   - Punkte, Muenzen, Sterne und Spielfeld-Positionen bleiben 100% erhalten!
+   - Die Partie laeuft fuer alle restlichen Mitschueler nahtlos und ohne Unterbrechung weiter.
+
+Viel Spass bei der Class Party!

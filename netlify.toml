@@ -1,0 +1,14 @@
+# Netlify configuration for Class Party Spiel (100% Serverless Static Web App)
+[build]
+  publish = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    X-Frame-Options = "SAMEORIGIN"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

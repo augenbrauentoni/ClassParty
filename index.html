@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="de" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Class Party - 2D Online Multiplayer Brettspiel</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Fredoka & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+  <!-- Socket.io client & PeerJS P2P (100% Serverless WebRTC Cloud) -->
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="h-full flex flex-col select-none overflow-x-hidden font-['Fredoka',sans-serif] bg-slate-950 text-slate-100 relative">
+
+  <!-- Animated Floating Party Background Particles -->
+  <div class="party-bg-container">
+    <div class="floating-icon" style="left: 8%; animation-delay: 0s;">⭐</div>
+    <div class="floating-icon" style="left: 24%; animation-delay: 4s;">🪙</div>
+    <div class="floating-icon" style="left: 40%; animation-delay: 9s;">🎲</div>
+    <div class="floating-icon" style="left: 58%; animation-delay: 2s;">⭐</div>
+    <div class="floating-icon" style="left: 75%; animation-delay: 6s;">🍄</div>
+    <div class="floating-icon" style="left: 90%; animation-delay: 11s;">🪙</div>
+  </div>
+
+  <!-- TOP HEADER / NAV -->
+  <header class="bg-slate-900/90 border-b border-slate-800 px-6 py-2.5 flex items-center justify-between z-30 shadow-md">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-xl shadow-lg shadow-yellow-500/20">
+        ⭐
+      </div>
+      <div>
+        <h1 class="text-xl font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400">
+          CLASS PARTY
+        </h1>
+        <p class="text-xs text-slate-400 font-sans">2D Party-Brettspiel für die Klasse</p>
+      </div>
+    </div>
+
+    <!-- Quick action buttons -->
+    <div class="flex items-center gap-3">
+      <div id="hud-round-indicator" class="px-3.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-sm font-bold text-amber-300 shadow-inner">
+        Lobby
+      </div>
+      <button id="btn-quick-minigames" class="px-3 py-1.5 rounded-lg bg-indigo-600/80 hover:bg-indigo-600 border border-indigo-500 text-xs font-bold text-white flex items-center gap-1.5 transition active:scale-95 shadow" title="Minispiel direkt testen">
+        <span>🎲</span> Minispiel testen
+      </button>
+      <button id="btn-open-settings" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5 transition active:scale-95" title="Steuerung konfigurieren">
+        <span>⚙️</span> Steuerung
+      </button>
+      <button id="btn-toggle-sound" class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-lg flex items-center justify-center transition active:scale-95 cursor-pointer" title="Ton umschalten">
+        🔊
+      </button>
+      <button id="btn-leave-game" class="hidden px-3 py-1.5 rounded-lg bg-red-950/80 hover:bg-red-900 border border-red-600 text-xs font-bold text-red-200 flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow" title="Spiel sicher verlassen">
+        <span>🚪</span> Verlassen
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN GAME CONTAINER -->
+  <main class="flex-1 relative flex flex-col items-center justify-start sm:justify-center p-2 sm:p-4 overflow-y-auto z-10 party-scrollbar w-full">
+
+    <!-- ==================== 1. LOBBY SCREEN ==================== -->
+    <section id="screen-lobby" class="w-full max-w-4xl flex flex-col items-center gap-6 my-auto z-10 py-2 sm:py-4">
+      
+      <!-- 💬 PROMINENTE TEAMS-EINLADUNGS-BOX 💬 -->
+      <div class="w-full bg-gradient-to-r from-[#444791] via-[#5059C9] to-[#6264A7] border-2 border-indigo-300/80 rounded-3xl p-5 shadow-2xl backdrop-blur-md flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center text-3xl shadow-inner border border-white/20 flex-shrink-0 animate-bounce">
+            💬
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] uppercase font-black tracking-widest text-indigo-200 bg-black/30 px-2.5 py-0.5 rounded-full border border-white/20">Microsoft Teams</span>
+              <span class="text-[11px] text-emerald-300 font-bold flex items-center gap-1">● Bereit für die Klasse</span>
+            </div>
+            <h2 class="text-base sm:text-lg font-black text-white mt-1">Einladung für Klassenkameraden (MS Teams)</h2>
+            <p class="text-xs text-indigo-100">Kopiere mit einem Klick den fertigen Einladungstext samt Link & Code für den Teams-Chat!</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2.5 w-full md:w-auto">
+          <button id="btn-copy-teams-invite" class="w-full md:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-xs sm:text-sm shadow-xl border border-emerald-200 flex items-center justify-center gap-2 transition transform active:scale-95 whitespace-nowrap cursor-pointer">
+            <span>📋</span> <span>Link & Einladungstext für Teams kopieren</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 🌟 DIE 5 GLÄNZENDEN MARIO-PARTY BLÖCKE (HAUPTMENÜ) 🌟 -->
+      <div class="w-full grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <!-- Block 1: Neues Spiel hosten -->
+        <button id="menu-btn-host" class="mp-block p-4 bg-gradient-to-b from-amber-400 via-amber-500 to-amber-600 border-yellow-200 border-b-amber-800 text-slate-950 flex flex-col items-center text-center gap-1 cursor-pointer">
+          <span class="text-3xl filter drop-shadow">🎲</span>
+          <span class="font-black text-xs tracking-tight">Neues Spiel hosten</span>
+          <span class="text-[10px] opacity-80 font-bold">Raum erstellen</span>
+        </button>
+        <!-- Block 2: Raum beitreten -->
+        <button id="menu-btn-join" class="mp-block p-4 bg-gradient-to-b from-blue-500 via-blue-600 to-indigo-700 border-blue-300 border-b-indigo-950 text-white flex flex-col items-center text-center gap-1 cursor-pointer">
+          <span class="text-3xl filter drop-shadow">🔑</span>
+          <span class="font-black text-xs tracking-tight">Raum beitreten</span>
+          <span class="text-[10px] text-blue-200 font-bold">Code eingeben</span>
+        </button>
+        <!-- Block 3: Avatar wählen -->
+        <button id="menu-btn-avatar" class="mp-block p-4 bg-gradient-to-b from-emerald-500 via-emerald-600 to-teal-700 border-emerald-300 border-b-teal-950 text-white flex flex-col items-center text-center gap-1 cursor-pointer">
+          <span class="text-3xl filter drop-shadow">🎭</span>
+          <span class="font-black text-xs tracking-tight">Avatar wählen</span>
+          <span class="text-[10px] text-emerald-200 font-bold">9 Helden</span>
+        </button>
+        <!-- Block 4: Charakter-Galerie -->
+        <button id="btn-open-gallery" class="mp-block p-4 bg-gradient-to-b from-purple-500 via-purple-600 to-pink-700 border-purple-300 border-b-pink-950 text-white flex flex-col items-center text-center gap-1 cursor-pointer">
+          <span class="text-3xl filter drop-shadow">✨</span>
+          <span class="font-black text-xs tracking-tight">Charakter-Galerie</span>
+          <span class="text-[10px] text-purple-200 font-bold">Auren & Details</span>
+        </button>
+        <!-- Block 5: Steuerung -->
+        <button id="menu-btn-settings" class="mp-block p-4 bg-gradient-to-b from-slate-600 via-slate-700 to-slate-800 border-slate-400 border-b-slate-950 text-slate-100 flex flex-col items-center text-center gap-1 cursor-pointer col-span-2 sm:col-span-1">
+          <span class="text-3xl filter drop-shadow">⚙️</span>
+          <span class="font-black text-xs tracking-tight">Steuerung</span>
+          <span class="text-[10px] text-slate-300 font-bold">Tastenbelegung</span>
+        </button>
+      </div>
+
+      <!-- Online Multiplayer Banner (Ausschliesslich Online) -->
+      <div class="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-slate-900 border border-blue-500/40 shadow-xl">
+        <span class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="font-black text-xs sm:text-sm text-blue-300">100% Online-Multiplayer</span>
+        <span class="text-xs text-slate-400 hidden sm:inline">• Jeder Spieler tritt vom eigenen Smartphone, Tablet oder Laptop per Link bei!</span>
+      </div>
+
+      <!-- ONLINE TAB CONTENT -->
+      <div id="view-online" class="w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-sm max-h-[85vh] overflow-y-auto party-scrollbar">
+        
+        <!-- 🎭 AVATAR-AUSWAHL (VORBEREITUNG & LOBBY) 🎭 -->
+        <div id="avatar-selection-section" class="mb-6 p-4 rounded-2xl bg-slate-950/70 border-2 border-indigo-500/40 shadow-xl flex flex-col gap-3">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-2.5">
+            <div class="flex items-center gap-2.5">
+              <span class="text-2xl animate-bounce">🎭</span>
+              <div>
+                <h3 class="text-sm sm:text-base font-black text-amber-300">Wähle deinen Klassen-Avatar</h3>
+                <p class="text-[11px] text-slate-400">Klicke auf deinen Wunsch-Avatar für das Spielbrett und alle Minispiele:</p>
+              </div>
+            </div>
+            <div id="avatar-active-display" class="flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-slate-900 border-2 border-amber-400/80 shadow-md">
+              <img id="avatar-selected-preview-img" src="assets/avatars/char1_pc_schrauber.png" class="w-8 h-8 rounded-lg object-cover border border-amber-400">
+              <div class="text-left">
+                <span class="text-[9px] uppercase font-black text-amber-400 tracking-wider block">Ausgewählt:</span>
+                <span id="avatar-selected-name" class="text-xs font-black text-white block">Der PC-Schrauber</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 9 Character Cards Grid -->
+          <div id="avatar-picker-grid" class="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
+            <!-- Dynamically populated from characters.js -->
+          </div>
+        </div>
+
+        <!-- Online Setup (Create or Join) -->
+        <div id="online-setup-forms" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          
+          <!-- Join Invitation Banner (Shown automatically when visiting ?room=XYZ) -->
+          <div id="invite-welcome-banner" class="hidden col-span-1 md:col-span-2 p-4 rounded-2xl bg-gradient-to-r from-blue-900/90 via-indigo-900/90 to-purple-900/90 border-2 border-yellow-400 shadow-xl flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <span class="text-3xl animate-bounce">🎉</span>
+              <div>
+                <h4 class="font-extrabold text-sm sm:text-base text-yellow-300">Du wurdest zum Party-Spiel eingeladen!</h4>
+                <p class="text-xs text-slate-200">Raum-Code: <strong class="text-white font-mono bg-black/50 px-2.5 py-0.5 rounded-lg text-sm border border-yellow-400/40" id="invite-banner-room-code">----</strong>. Gib deinen Spielernamen ein und klicke auf Beitreten!</p>
+              </div>
+            </div>
+            <span class="text-xs bg-yellow-400 text-slate-950 font-black px-3 py-1.5 rounded-xl uppercase tracking-wider shadow">Schnellbeitritt</span>
+          </div>
+
+          <!-- Create Room Card -->
+          <div id="online-create-card" class="flex flex-col gap-4 p-5 rounded-2xl bg-slate-800/70 border border-slate-700/80 transition-all">
+            <div class="flex items-center gap-2 text-lg font-bold text-emerald-400">
+              <span>🏠</span> Neuen Raum erstellen
+            </div>
+            <p class="text-xs text-slate-400 font-sans">
+              Erstelle einen Raum und lade Mitschüler über den 4-stelligen Code ein. Leere Plätze werden mit Bots aufgefüllt.
+            </p>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Dein Spielername</label>
+              <input id="input-host-name" type="text" maxlength="14" value="Spieler 1" class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-sans">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Anzahl Runden</label>
+              <select id="select-rounds-online" class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-sans">
+                <option value="5">5 Runden (Schnell / Test)</option>
+                <option value="10" selected>10 Runden (Empfohlen)</option>
+                <option value="15">15 Runden (Klassisch)</option>
+                <option value="20">20 Runden (Große Party)</option>
+              </select>
+            </div>
+            <button id="btn-create-room" class="mt-2 w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-extrabold shadow-lg shadow-emerald-600/30 transition transform active:scale-95">
+              Raum erstellen 🚀
+            </button>
+          </div>
+
+          <!-- Join Room Card -->
+          <div id="online-join-card" class="flex flex-col gap-4 p-5 rounded-2xl bg-slate-800/70 border border-slate-700/80 transition-all">
+            <div class="flex items-center gap-2 text-lg font-bold text-blue-400">
+              <span>🔑</span> Mit Raum-Code beitreten
+            </div>
+            <p class="text-xs text-slate-400 font-sans">
+              Gib den 4-stelligen Code ein, den der Raum-Ersteller auf seinem Bildschirm sieht.
+            </p>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">4-stelliger Raum-Code</label>
+              <input id="input-join-code" type="text" maxlength="4" placeholder="z. B. 7K9A" class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-yellow-300 uppercase tracking-widest font-mono text-center text-lg focus:outline-none focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Dein Spielername</label>
+              <input id="input-join-name" type="text" maxlength="14" placeholder="Dein Name" class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500 font-sans">
+            </div>
+            <button id="btn-join-room" class="mt-2 w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold shadow-lg shadow-blue-600/30 transition transform active:scale-95">
+              Raum beitreten 🎮
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Waiting Room Lobby (shown once room is created / joined) -->
+        <div id="online-room-lobby" class="hidden flex flex-col gap-6">
+          <div class="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-slate-800/90 border border-slate-700">
+            <div>
+              <div class="text-xs text-slate-400 font-sans">RAUM-CODE (AN MITSCHÜLER WEITERGEBEN)</div>
+              <div class="flex items-center gap-3 mt-1">
+                <span id="lobby-room-code-badge" class="text-3xl font-black text-amber-300 tracking-wider font-mono">----</span>
+                <span class="text-xs px-2.5 py-1 rounded bg-slate-700 text-slate-300">Teile diesen Code!</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <button id="btn-toggle-team-mode" class="px-4 py-3 rounded-xl bg-purple-700 hover:bg-purple-600 text-white font-bold text-xs flex items-center gap-2 border border-purple-400 shadow transition active:scale-95">
+                <span>👥</span> <span id="team-mode-label">Team-Modus: AUS (Einzelspieler)</span>
+              </button>
+              <button id="btn-start-online-game" class="px-8 py-3.5 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-extrabold text-lg shadow-xl shadow-green-500/25 transition transform active:scale-95">
+                Spiel starten ▶️
+              </button>
+            </div>
+          </div>
+
+          <!-- Share with Class Card (QR-Code & Direct Link) -->
+          <div class="p-4 rounded-2xl bg-gradient-to-r from-indigo-950/80 to-slate-900 border-2 border-indigo-500/60 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-4">
+              <canvas id="lobby-qr-canvas" width="105" height="105" class="rounded-xl border-2 border-indigo-400 bg-white shadow-md flex-shrink-0"></canvas>
+              <div class="flex flex-col gap-1.5">
+                <span class="text-xs uppercase tracking-wider font-extrabold text-indigo-400 flex items-center gap-1.5">
+                  <span>📱</span> Mit der Klasse teilen
+                </span>
+                <p class="text-xs text-slate-300 max-w-sm">
+                  Mitschüler können den QR-Code scannen oder diesen Einladungs-Link direkt im Browser öffnen:
+                </p>
+                <div class="flex flex-wrap items-center gap-2">
+                  <input id="input-invite-link" type="text" readonly class="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-indigo-300 font-mono w-72 select-all">
+                  <button id="btn-copy-invite-link" class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow">
+                    <span>📋</span> Link kopieren
+                  </button>
+                  <button id="btn-lobby-copy-teams" class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow cursor-pointer">
+                    <span>💬</span> Teams-Text kopieren
+                  </button>
+                  <button id="btn-toggle-link-mode" class="hidden px-3 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-600 text-white font-bold text-xs flex items-center gap-1 transition active:scale-95 shadow">
+                    <span>🌐</span> Typ wechseln
+                  </button>
+                </div>
+                <div id="lobby-network-hint" class="text-[11px] text-indigo-300 font-semibold mt-0.5"></div>
+              </div>
+            </div>
+
+          <!-- 🎭 LIVE AVATAR SWITCHER IN RAUM-LOBBY 🎭 -->
+          <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 flex flex-col gap-2.5 shadow-md">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+              <div class="flex items-center gap-2">
+                <span class="text-xl">🎭</span>
+                <h4 class="text-xs font-black text-amber-300 uppercase tracking-wide">Dein Klassen-Avatar (hier wechseln):</h4>
+              </div>
+              <span class="text-[11px] text-slate-400">Klick synchronisiert deinen Avatar sofort für alle Mitschüler</span>
+            </div>
+            <div id="lobby-avatar-picker-grid" class="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
+              <!-- Dynamically populated from characters.js -->
+            </div>
+          </div>
+            <div class="flex flex-col items-end gap-1 text-right">
+              <span id="badge-network-mode" class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-500">
+                🟢 Socket.io & P2P WebRTC aktiv
+              </span>
+              <span class="text-[10px] text-slate-400">1-Klick Direktbeitritt über URL</span>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-2 p-3 rounded-2xl bg-purple-950/40 border border-purple-500/40">
+            <span class="text-xs font-bold text-purple-200">🎭 Gestalte deine Spielfigur oder lade dein eigenes Foto hoch:</span>
+            <button id="btn-add-custom-char-online" class="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:brightness-110 text-white font-extrabold text-xs flex items-center gap-1.5 shadow transition active:scale-95 cursor-pointer">
+              <span>➕</span> Eigenes Bild / Weiteren Charakter hinzufügen
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[46vh] overflow-y-auto pr-1 party-scrollbar" id="online-slots-list">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================== 2. BOARD PHASE SCREEN ==================== -->
+    <section id="screen-board" class="hidden w-full h-full flex flex-col items-center justify-between relative max-w-7xl">
+      
+      <!-- Top HUD Player Cards & Turn Banner -->
+      <div class="w-full flex flex-wrap items-center justify-between gap-3 px-2 py-1 z-20">
+        <!-- Player Badges -->
+        <div id="hud-players-container" class="flex flex-wrap gap-2.5">
+          <!-- Dynamically populated -->
+        </div>
+
+        <!-- Active Turn Controls -->
+        <div class="flex items-center gap-3 bg-slate-900/90 border border-slate-700/80 px-4 py-2 rounded-2xl shadow-xl backdrop-blur-sm">
+          <div id="hud-turn-banner" class="text-sm font-semibold text-white">
+            Warten auf Spielstart...
+          </div>
+          <!-- Item inventory buttons before rolling -->
+          <div id="hud-items-container" class="flex items-center gap-1.5">
+            <!-- Dynamic item chips -->
+          </div>
+          <button id="btn-roll-dice" class="hidden px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-sm shadow-lg shadow-yellow-500/30 transition transform active:scale-95 flex items-center gap-1.5 animate-bounce">
+            <span>🎲</span> Würfeln <span class="text-[10px] px-1 py-0.5 rounded bg-black/20 text-slate-900 font-mono">[SPACE]</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 2D Canvas Viewport -->
+      <div class="relative w-full flex-1 flex items-center justify-center my-1">
+        <canvas id="board-canvas" width="1400" height="880" class="max-w-full max-h-[82vh] object-contain rounded-2xl shadow-2xl border-4 border-slate-800 bg-slate-900"></canvas>
+
+        <!-- Floating Camera Control Bar -->
+        <div class="absolute bottom-4 right-4 flex items-center gap-1.5 p-1.5 bg-slate-900/90 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-md z-30">
+          <button id="btn-cam-overview" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-indigo-600 text-xs font-bold text-slate-200 hover:text-white transition flex items-center gap-1.5 shadow" title="Übersicht über alle 5 Inseln [M]">
+            <span>🗺️</span> <span>Ganze Welt [M]</span>
+          </button>
+          <button id="btn-cam-zoomin" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold flex items-center justify-center transition shadow text-xs" title="Heranzoomen">
+            ➕
+          </button>
+          <button id="btn-cam-zoomout" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold flex items-center justify-center transition shadow text-xs" title="Herauszoomen">
+            ➖
+          </button>
+          <button id="btn-cam-recenter" class="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition flex items-center gap-1 shadow" title="Auf aktiven Spieler zentrieren">
+            <span>🎯</span> <span>Fokus</span>
+          </button>
+        </div>
+
+        <!-- Floating Notification / Toast -->
+        <div id="hud-toast" class="hidden absolute top-8 px-6 py-3 rounded-2xl bg-slate-900/95 border-2 border-yellow-400 text-yellow-300 font-extrabold text-base shadow-2xl pointer-events-none z-30">
+          Münzen erhalten!
+        </div>
+
+        <!-- Dice Roll Modal Overlay -->
+        <div id="dice-roll-modal" class="hidden absolute inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-40">
+          <div class="p-8 rounded-3xl bg-slate-900 border-4 border-yellow-400 flex flex-col items-center gap-4 shadow-2xl animate-in zoom-in-95 duration-200">
+            <span class="text-base font-bold text-slate-300">WÜRFEL ROLLT...</span>
+            <div id="dice-number-display" class="w-28 h-28 rounded-2xl bg-gradient-to-br from-yellow-300 via-amber-400 to-amber-500 border-4 border-amber-600 flex items-center justify-center text-6xl font-black text-slate-950 shadow-2xl shadow-yellow-500/50">
+              ?
+            </div>
+            <span class="text-xs text-yellow-300 font-mono">1 bis 10</span>
+          </div>
+        </div>
+
+        <!-- Fork Branch Choice Modal (Dynamic Titles & Buttons) -->
+        <div id="branch-modal" class="hidden absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-40 p-3 sm:p-4 overflow-y-auto party-scrollbar">
+          <div class="max-w-lg p-6 rounded-3xl bg-slate-900 border-2 border-yellow-400 flex flex-col items-center gap-4 shadow-2xl text-center max-h-[88vh] overflow-y-auto party-scrollbar my-auto">
+            <div class="text-3xl">🔀</div>
+            <h3 id="branch-modal-title" class="text-xl font-bold text-yellow-300">Weg-Gabelung erreicht!</h3>
+            <p id="branch-modal-desc" class="text-sm text-slate-300 font-sans">Welchen Weg möchtest du einschlagen?</p>
+            <div class="grid grid-cols-2 gap-4 w-full mt-2">
+              <button id="btn-branch-coast" class="p-4 rounded-2xl bg-blue-950/80 hover:bg-blue-900 border border-blue-500 text-white font-bold transition flex flex-col items-center gap-1 shadow-lg">
+                <span class="text-2xl">🛤️</span>
+                <span id="btn-branch-a-title">Weg A</span>
+                <span id="btn-branch-a-sub" class="text-xs text-blue-300 font-normal">Hauptstrecke</span>
+              </button>
+              <button id="btn-branch-shortcut" class="p-4 rounded-2xl bg-amber-950/80 hover:bg-amber-900 border border-amber-500 text-white font-bold transition flex flex-col items-center gap-1 shadow-lg">
+                <span class="text-2xl">⚡</span>
+                <span id="btn-branch-b-title">Weg B</span>
+                <span id="btn-branch-b-sub" class="text-xs text-amber-300 font-normal">Abkürzung</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Star Purchase Modal -->
+        <div id="star-modal" class="hidden absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-40 p-3 sm:p-4 overflow-y-auto party-scrollbar">
+          <div class="max-w-md p-6 rounded-3xl bg-slate-900 border-4 border-amber-400 flex flex-col items-center gap-4 shadow-2xl text-center max-h-[88vh] overflow-y-auto party-scrollbar my-auto">
+            <div class="text-5xl animate-spin" style="animation-duration: 4s;">⭐</div>
+            <h3 class="text-2xl font-black text-amber-300">Stern-Feld passiert!</h3>
+            <p class="text-sm text-slate-200 font-sans">
+              Möchtest du für <span class="font-bold text-yellow-400">20 Münzen</span> einen goldenen Stern kaufen?
+            </p>
+            <div class="flex gap-4 w-full mt-2">
+              <button id="btn-star-yes" class="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-base shadow-lg shadow-yellow-500/30 transition transform active:scale-95">
+                ⭐ Stern kaufen (20🪙)
+              </button>
+              <button id="btn-star-no" class="flex-1 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-base transition">
+                Nein danke
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Event Modal -->
+        <div id="event-modal" class="hidden absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-40 p-3 sm:p-4 overflow-y-auto party-scrollbar">
+          <div class="max-w-md w-full p-6 rounded-3xl bg-slate-900 border-4 border-emerald-400 flex flex-col items-center gap-3 shadow-2xl text-center animate-in zoom-in-95 max-h-[88vh] overflow-y-auto party-scrollbar my-auto">
+            <div id="event-icon" class="text-4xl">❓</div>
+            <h3 id="event-title" class="text-2xl font-black text-emerald-400">Ereignis!</h3>
+            <p id="event-desc" class="text-sm text-slate-200 font-sans">Ein magischer Effekt tritt ein...</p>
+            <div id="event-interactive-box" class="w-full mt-2"></div>
+          </div>
+        </div>
+
+        <!-- 1. Lucky Roulette Modal -->
+        <div id="roulette-modal" class="hidden absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center z-40 p-3 sm:p-4 overflow-y-auto party-scrollbar">
+          <div class="max-w-md w-full p-6 rounded-3xl bg-slate-900 border-4 border-amber-400 flex flex-col items-center gap-4 shadow-2xl text-center animate-in zoom-in-95 max-h-[88vh] overflow-y-auto party-scrollbar my-auto">
+            <div class="text-4xl animate-bounce">🎰</div>
+            <h3 class="text-2xl font-black text-amber-300">GLÜCKSRAD!</h3>
+            <p class="text-xs text-slate-300 font-sans">Stoppe das Rad im richtigen Moment!</p>
+            <div class="relative w-48 h-48 my-2 flex items-center justify-center">
+              <canvas id="roulette-wheel-canvas" width="190" height="190" class="rounded-full shadow-2xl border-4 border-amber-400"></canvas>
+              <div class="absolute -top-3 w-0 h-0 border-l-[10px] border-r-[10px] border-t-[16px] border-l-transparent border-r-transparent border-t-yellow-300 z-10 drop-shadow"></div>
+            </div>
+            <div id="roulette-result-display" class="font-extrabold text-base text-yellow-300 min-h-[28px]">
+              Dreht sich...
+            </div>
+            <button id="btn-stop-roulette" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-base shadow-lg shadow-yellow-500/30 transition transform active:scale-95">
+              🛑 JETZT STOPPEN! [SPACE]
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. Boo Ghost Steal Modal -->
+        <div id="boo-modal" class="hidden absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center z-40 p-3 sm:p-4 overflow-y-auto party-scrollbar">
+          <div class="max-w-md w-full p-6 rounded-3xl bg-slate-900 border-4 border-slate-600 flex flex-col items-center gap-4 shadow-2xl text-center animate-in zoom-in-95 max-h-[88vh] overflow-y-auto party-scrollbar my-auto">
+            <div class="text-5xl animate-bounce">👻</div>
+            <h3 class="text-2xl font-black text-slate-200">GEISTER-KLAU (BOO)!</h3>
+            <p class="text-xs text-slate-300 font-sans">Wähle deinen diebischen Geister-Streich:</p>
+            <div id="boo-options-container" class="grid grid-cols-1 gap-3 w-full">
+              <button id="btn-boo-steal-coins" class="p-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-left transition flex items-center gap-3">
+                <span class="text-3xl">🪙</span>
+                <div>
+                  <div class="font-extrabold text-sm text-yellow-300">Gratis: Münzen stehlen</div>
+                  <div class="text-xs text-slate-400">Stiehlt 5 bis 10 Münzen von einem Mitspieler</div>
+                </div>
+              </button>
+              <button id="btn-boo-steal-star" class="p-3.5 rounded-2xl bg-amber-950/70 hover:bg-amber-900/80 border border-amber-500 text-left transition flex items-center gap-3">
+                <span class="text-3xl">⭐</span>
+                <div>
+                  <div class="font-extrabold text-sm text-amber-300">Für 30🪙: Ganzen STERN stehlen!</div>
+                  <div class="text-xs text-slate-400">Schnappe einem Gegner einen seiner Sterne weg</div>
+                </div>
+              </button>
+            </div>
+            <!-- Target selection list (shown after selecting steal type) -->
+            <div id="boo-targets-container" class="hidden w-full flex flex-col gap-2 pt-2 border-t border-slate-700">
+              <span class="text-xs font-bold text-slate-300">Wähle das Opfer:</span>
+              <div id="boo-targets-list" class="grid grid-cols-3 gap-2"></div>
+            </div>
+            <button id="btn-boo-cancel" class="text-xs text-slate-500 hover:text-slate-300 transition">Abbrechen / Weiter</button>
+          </div>
+        </div>
+
+        <!-- 3. Bowser / Chaos Modal -->
+        <div id="bowser-modal" class="hidden absolute inset-0 bg-red-950/90 backdrop-blur-md flex items-center justify-center z-40 p-3 sm:p-4 overflow-y-auto party-scrollbar">
+          <div class="max-w-md w-full p-6 rounded-3xl bg-slate-950 border-4 border-red-600 flex flex-col items-center gap-4 shadow-2xl text-center animate-in zoom-in-95 max-h-[88vh] overflow-y-auto party-scrollbar my-auto">
+            <div class="text-6xl animate-pulse">👹</div>
+            <h3 class="text-3xl font-black text-red-500 tracking-wider">BOWSER CHAOS!</h3>
+            <p id="bowser-subtitle" class="text-xs text-red-300 font-sans">Bwahaha! Das Chaos-Rad entscheidet über euer Schicksal!</p>
+            <div id="bowser-event-card" class="w-full p-4 rounded-2xl bg-red-950/60 border-2 border-red-500/80 flex flex-col items-center gap-2">
+              <div id="bowser-event-icon" class="text-4xl">⏳</div>
+              <div id="bowser-event-title" class="text-lg font-black text-yellow-300">Rad dreht sich...</div>
+              <p id="bowser-event-desc" class="text-xs text-slate-200">Was wird passieren?</p>
+            </div>
+            <button id="btn-bowser-ok" class="hidden w-full py-3.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-extrabold text-base shadow-lg shadow-red-600/40 transition">
+              Oje... Weiter ▶️
+            </button>
+          </div>
+        </div>
+
+        <!-- 4. Duel Modal -->
+        <div id="duel-modal" class="hidden absolute inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center z-40 p-3 sm:p-4 overflow-y-auto party-scrollbar">
+          <div class="max-w-md w-full p-6 rounded-3xl bg-slate-900 border-4 border-red-500 flex flex-col items-center gap-4 shadow-2xl text-center animate-in zoom-in-95 max-h-[88vh] overflow-y-auto party-scrollbar my-auto">
+            <div class="text-5xl">⚔️</div>
+            <h3 class="text-2xl font-black text-red-400">DUELL-HERAUSFORDERUNG!</h3>
+            <p id="duel-desc" class="text-xs text-slate-300 font-sans">Einsatz: 10 Münzen pro Spieler (20🪙 Sieger-Pot)!</p>
+            <!-- Combatants Display -->
+            <div class="flex items-center justify-around w-full py-2">
+              <div id="duel-p1-card" class="flex flex-col items-center gap-1">
+                <div class="w-12 h-12 rounded-full border-2 border-white flex items-center justify-center font-bold text-white text-sm" id="duel-p1-avatar">P1</div>
+                <span id="duel-p1-name" class="font-bold text-xs text-white">Spieler 1</span>
+              </div>
+              <span class="text-2xl font-black text-yellow-400 animate-pulse">VS</span>
+              <div id="duel-p2-card" class="flex flex-col items-center gap-1">
+                <div class="w-12 h-12 rounded-full border-2 border-white flex items-center justify-center font-bold text-white text-sm" id="duel-p2-avatar">P2</div>
+                <span id="duel-p2-name" class="font-bold text-xs text-white">Spieler 2</span>
+              </div>
+            </div>
+            <!-- Reaction Test Box -->
+            <div id="duel-arena-box" class="w-full p-5 rounded-2xl bg-slate-950 border border-slate-700 flex flex-col items-center gap-2">
+              <span id="duel-status-text" class="text-xs font-mono text-slate-400">Bereitmachen...</span>
+              <div id="duel-trigger-badge" class="text-3xl font-black text-yellow-300 min-h-[40px] flex items-center justify-center font-mono">
+                3
+              </div>
+              <button id="btn-duel-strike" class="hidden w-full py-3.5 rounded-xl bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white font-black text-lg shadow-lg shadow-red-600/40 transition transform active:scale-95 animate-bounce">
+                🔥 ZUSCHLAGEN! [SPACE]
+              </button>
+            </div>
+            <div id="duel-winner-banner" class="hidden font-black text-base text-yellow-300 animate-bounce"></div>
+          </div>
+        </div>
+
+        <!-- 5. Item Shop Modal -->
+        <div id="shop-modal" class="hidden absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center z-40 p-3 sm:p-4 overflow-y-auto party-scrollbar">
+          <div class="max-w-2xl w-full p-5 sm:p-6 rounded-3xl bg-slate-900 border-4 border-sky-400 flex flex-col items-center gap-4 shadow-2xl text-center animate-in zoom-in-95 max-h-[88vh] overflow-y-auto party-scrollbar my-auto">
+            <div class="flex items-center gap-3">
+              <span class="text-4xl">🛒</span>
+              <div>
+                <h3 class="text-2xl font-black text-sky-300">ITEM-SHOP</h3>
+                <p class="text-xs text-slate-300 font-sans">
+                  Kaufe taktische Vorteile oder lustige Party-Items für die Klasse (max. 2 Items pro Spieler):
+                </p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full text-left">
+              
+              <!-- KATEGORIE 1: HILFREICHE ITEMS -->
+              <div class="flex flex-col gap-2 p-3 rounded-2xl bg-slate-800/60 border border-indigo-500/40">
+                <div class="flex items-center gap-2 pb-1 border-b border-indigo-500/30">
+                  <span class="text-sm">🛡️</span>
+                  <span class="text-xs font-black uppercase tracking-wider text-indigo-300">Taktik & Vorteile</span>
+                </div>
+
+                <!-- Item 1: Doppel-Würfel -->
+                <div class="p-2.5 rounded-xl bg-slate-800/90 border border-slate-700 flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">🎲</span>
+                    <div>
+                      <div class="font-bold text-xs text-white">Doppel-Würfel</div>
+                      <div class="text-[10px] text-slate-400">Würfle 2 Würfel (bis 20)</div>
+                    </div>
+                  </div>
+                  <button data-item="double_dice" class="btn-buy-item px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition cursor-pointer whitespace-nowrap">
+                    10🪙 Kaufen
+                  </button>
+                </div>
+
+                <!-- Item 2: Sternen-Schutzschild -->
+                <div class="p-2.5 rounded-xl bg-slate-800/90 border border-slate-700 flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">🛡️</span>
+                    <div>
+                      <div class="font-bold text-xs text-cyan-300">Sternen-Schild</div>
+                      <div class="text-[10px] text-slate-400">Blockt Boo/Bowser-Klau</div>
+                    </div>
+                  </div>
+                  <button data-item="shield" class="btn-buy-item px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs transition cursor-pointer whitespace-nowrap">
+                    8🪙 Kaufen
+                  </button>
+                </div>
+
+                <!-- Item 3: Wunsch-Würfel -->
+                <div class="p-2.5 rounded-xl bg-slate-800/90 border border-slate-700 flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">⭐</span>
+                    <div>
+                      <div class="font-bold text-xs text-yellow-300">Wunsch-Würfel</div>
+                      <div class="text-[10px] text-slate-400">Wähle exakt 1 bis 10</div>
+                    </div>
+                  </div>
+                  <button data-item="gold_dice" class="btn-buy-item px-3 py-1.5 rounded-lg bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black text-xs transition cursor-pointer whitespace-nowrap">
+                    12🪙 Kaufen
+                  </button>
+                </div>
+
+                <!-- Item 4: Warp-Röhre -->
+                <div class="p-2.5 rounded-xl bg-slate-800/90 border border-slate-700 flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">🧪</span>
+                    <div>
+                      <div class="font-bold text-xs text-white">Warp-Röhre</div>
+                      <div class="text-[10px] text-slate-400">Tausche Platz mit Gegner</div>
+                    </div>
+                  </div>
+                  <button data-item="warp_pipe" class="btn-buy-item px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition cursor-pointer whitespace-nowrap">
+                    12🪙 Kaufen
+                  </button>
+                </div>
+
+                <!-- Item 5: Verfluchter Würfel -->
+                <div class="p-2.5 rounded-xl bg-slate-800/90 border border-slate-700 flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">⚡</span>
+                    <div>
+                      <div class="font-bold text-xs text-white">Fluch-Würfel (1-3)</div>
+                      <div class="text-[10px] text-slate-400">Bremst Gegner aus</div>
+                    </div>
+                  </div>
+                  <button data-item="cursed_dice" class="btn-buy-item px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition cursor-pointer whitespace-nowrap">
+                    7🪙 Kaufen
+                  </button>
+                </div>
+
+              </div>
+
+              <!-- KATEGORIE 2: LUSTIGE PARTY-GAG-ITEMS -->
+              <div class="flex flex-col gap-2 p-3 rounded-2xl bg-slate-800/60 border border-purple-500/40">
+                <div class="flex items-center gap-2 pb-1 border-b border-purple-500/30">
+                  <span class="text-sm">🎭</span>
+                  <span class="text-xs font-black uppercase tracking-wider text-purple-300">Lustige Gag-Items</span>
+                </div>
+
+                <!-- Gag Item 1: Konfetti-Kanone -->
+                <div class="p-2.5 rounded-xl bg-slate-800/90 border border-slate-700 flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">🎉</span>
+                    <div>
+                      <div class="font-bold text-xs text-pink-300">Konfetti-Kanone</div>
+                      <div class="text-[10px] text-slate-400">Bunter Regen für alle</div>
+                    </div>
+                  </div>
+                  <button data-item="confetti_cannon" class="btn-buy-item px-3 py-1.5 rounded-lg bg-pink-500 hover:bg-pink-400 text-white font-black text-xs transition cursor-pointer whitespace-nowrap">
+                    5🪙 Kaufen
+                  </button>
+                </div>
+
+                <!-- Gag Item 2: Mega-Party-Hupe -->
+                <div class="p-2.5 rounded-xl bg-slate-800/90 border border-slate-700 flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">📯</span>
+                    <div>
+                      <div class="font-bold text-xs text-amber-300">Party-Tröte</div>
+                      <div class="text-[10px] text-slate-400">Tröten-Sound + Screen-Shake</div>
+                    </div>
+                  </div>
+                  <button data-item="party_horn" class="btn-buy-item px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition cursor-pointer whitespace-nowrap">
+                    4🪙 Kaufen
+                  </button>
+                </div>
+
+                <!-- Gag Item 3: Riesenkopf-Zauber -->
+                <div class="p-2.5 rounded-xl bg-slate-800/90 border border-slate-700 flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">🍄</span>
+                    <div>
+                      <div class="font-bold text-xs text-emerald-300">Riesenkopf-Modus</div>
+                      <div class="text-[10px] text-slate-400">Kopf wächst gigantisch</div>
+                    </div>
+                  </div>
+                  <button data-item="giant_head" class="btn-buy-item px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs transition cursor-pointer whitespace-nowrap">
+                    6🪙 Kaufen
+                  </button>
+                </div>
+
+                <!-- Gag Item 4: Disco-Party-Fieber -->
+                <div class="p-2.5 rounded-xl bg-slate-800/90 border border-slate-700 flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">🪩</span>
+                    <div>
+                      <div class="font-bold text-xs text-purple-300">Disco-Fieber</div>
+                      <div class="text-[10px] text-slate-400">Regenbogenlicht & Tanz</div>
+                    </div>
+                  </div>
+                  <button data-item="disco_dance" class="btn-buy-item px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-black text-xs transition cursor-pointer whitespace-nowrap">
+                    5🪙 Kaufen
+                  </button>
+                </div>
+
+              </div>
+
+            </div>
+
+            <button id="btn-close-shop" class="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm transition cursor-pointer">
+              Shop verlassen ▶️
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ==================== 3. MINIGAME INTRO SCREEN (PRE-GAME TUTORIAL) ==================== -->
+    <section id="screen-minigame-intro" class="hidden w-full max-w-4xl flex flex-col items-center justify-center my-auto z-20 py-2 sm:py-4">
+      <div class="w-full bg-slate-900/95 border-4 border-yellow-400 rounded-3xl p-5 sm:p-7 shadow-2xl flex flex-col items-center gap-5 text-center backdrop-blur-md max-h-[88vh] overflow-y-auto party-scrollbar">
+        
+        <!-- Header Info -->
+        <div class="flex flex-col items-center gap-1.5">
+          <div class="flex items-center gap-2">
+            <span class="text-xs uppercase tracking-widest font-black text-amber-400 bg-amber-950/70 px-4 py-1 rounded-full border border-amber-500/50">
+              Minispiel-Runde
+            </span>
+            <span id="intro-mode-badge" class="text-xs uppercase tracking-widest font-bold text-indigo-300 bg-indigo-950/70 px-3 py-1 rounded-full border border-indigo-500/40">
+              ⚔️ Jeder gegen Jeden
+            </span>
+          </div>
+          <div id="intro-icon" class="text-5xl mt-1 filter drop-shadow">💣</div>
+          <h2 id="intro-game-title" class="text-2xl sm:text-3xl font-black text-white">Heiße Kartoffel (Bomb Tag)</h2>
+        </div>
+
+        <!-- 2-Spalten Layout: Links Ziel & Regeln, Rechts Visuelle Tastenbelegung -->
+        <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+          
+          <!-- Box 1: Ziel & Spielregeln -->
+          <div class="p-4 rounded-2xl bg-slate-800/80 border border-slate-700 flex flex-col gap-3 justify-between">
+            <div class="flex flex-col gap-2">
+              <div class="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-amber-400">
+                <span>🎯</span> <span>Ziel des Minispiels</span>
+              </div>
+              <div id="intro-goal" class="font-extrabold text-sm sm:text-base text-yellow-200">
+                Überlebe als Letzter, ohne die Bombe zu halten!
+              </div>
+              <div class="pt-2 border-t border-slate-700/70">
+                <div class="text-[11px] font-bold text-slate-300 uppercase mb-1">📋 Spielregeln:</div>
+                <p id="intro-game-desc" class="text-xs text-slate-300 font-sans leading-relaxed">
+                  Laufe vor dem Spieler mit der Bombe weg! Wenn du die Bombe hast, berühre einen Mitspieler, um sie loszuwerden!
+                </p>
+              </div>
+            </div>
+            
+            <div class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/80 text-[11px] text-slate-400 flex items-center gap-2">
+              <span class="text-lg">💡</span>
+              <span id="intro-tip-text">Tipp: Beobachte deine Gegner und nutze den gesamten Bildschirmplatz aus!</span>
+            </div>
+          </div>
+
+          <!-- Box 2: Visuelle Tastaturbelegung (Interactive Keyboard Visualizer) -->
+          <div class="p-4 rounded-2xl bg-slate-800/80 border border-indigo-500/50 flex flex-col gap-3">
+            <div class="flex items-center justify-between pb-1.5 border-b border-indigo-500/30">
+              <div class="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-indigo-300">
+                <span>🕹️</span> <span>Steuerung (Tastatur)</span>
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono">Standard-Layout</span>
+            </div>
+
+            <!-- Visuelle 3D-Tastenbelegung -->
+            <div class="flex flex-wrap items-center justify-around gap-4 py-1">
+              
+              <!-- Richtungstasten Cluster (WASD & Pfeile) -->
+              <div class="flex flex-col items-center gap-1">
+                <div class="w-9 h-9 rounded-xl bg-slate-900 border-2 border-slate-600 shadow-md flex items-center justify-center font-black text-xs text-yellow-300">W / ⬆️</div>
+                <div class="flex gap-1">
+                  <div class="w-9 h-9 rounded-xl bg-slate-900 border-2 border-slate-600 shadow-md flex items-center justify-center font-black text-xs text-yellow-300">A / ⬅️</div>
+                  <div class="w-9 h-9 rounded-xl bg-slate-900 border-2 border-slate-600 shadow-md flex items-center justify-center font-black text-xs text-yellow-300">S / ⬇️</div>
+                  <div class="w-9 h-9 rounded-xl bg-slate-900 border-2 border-slate-600 shadow-md flex items-center justify-center font-black text-xs text-yellow-300">D / ➡️</div>
+                </div>
+                <span class="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Laufen / Steuern</span>
+              </div>
+
+              <!-- Aktionstaste / Leertaste -->
+              <div class="flex flex-col items-center gap-1.5">
+                <div class="px-5 h-10 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 border-2 border-indigo-300 shadow-lg flex items-center justify-center font-black text-xs text-white uppercase tracking-wider animate-pulse">
+                  ␣ LEERTASTE / ENTER
+                </div>
+                <span id="intro-action-label" class="text-[10px] text-indigo-300 font-bold uppercase">Aktion / Springen</span>
+              </div>
+
+            </div>
+
+            <!-- Tastatur-Kurzhinweise für lokalen Modus -->
+            <div class="pt-2 border-t border-slate-700/60 text-[10px] text-slate-400 flex flex-col gap-0.5 font-mono">
+              <div><b class="text-red-400">P1:</b> WASD + Space &nbsp;|&nbsp; <b class="text-blue-400">P2:</b> Pfeiltasten + Enter</div>
+              <div><b class="text-emerald-400">P3:</b> IJKL + U-Taste &nbsp;|&nbsp; <b class="text-amber-400">P4:</b> Numpad 8456 + 0</div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- 3-2-1-LOS Countdown & Bereit-Button -->
+        <div class="flex flex-col items-center gap-2 pt-2 w-full max-w-md">
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-slate-400 font-sans">Automatischer Start in:</span>
+            <div id="intro-countdown-timer" class="text-4xl sm:text-5xl font-black text-yellow-300 animate-pulse font-mono min-w-[50px]">
+              7
+            </div>
+          </div>
+
+          <button id="btn-start-minigame-now" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-base shadow-xl shadow-emerald-500/30 transition transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer">
+            <span>🎮</span> <span>Ich bin bereit! (LEERTASTE)</span>
+          </button>
+          
+          <div id="intro-ready-status" class="text-[11px] text-emerald-400 font-bold">
+            Tippe auf „Bereit“ oder warte auf den Countdown...
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================== 4. MINIGAME PLAY ARENA ==================== -->
+    <section id="screen-minigame-play" class="hidden w-full h-full flex flex-col items-center justify-center relative max-w-6xl">
+      <canvas id="minigame-canvas" width="1000" height="650" class="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl border-4 border-slate-800 bg-slate-950"></canvas>
+    </section>
+
+    <!-- ==================== 5. MINIGAME RESULTS SCREEN ==================== -->
+    <section id="screen-minigame-results" class="hidden w-full max-w-2xl flex flex-col items-center justify-center my-auto z-20 py-2 sm:py-4">
+      <div class="w-full bg-slate-900/95 border-2 border-slate-700 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col gap-6 backdrop-blur-md max-h-[86vh] overflow-y-auto party-scrollbar">
+        
+        <div class="text-center">
+          <div class="text-4xl">🏆</div>
+          <h2 class="text-2xl font-black text-yellow-300 mt-2">Minispiel-Ergebnis!</h2>
+          <p class="text-xs text-slate-400 font-sans">Münzen wurden auf das Spielbrett-Konto gutgeschrieben</p>
+        </div>
+
+        <!-- Podium List -->
+        <div id="results-podium-container" class="flex flex-col gap-3 max-h-[44vh] overflow-y-auto pr-1.5 party-scrollbar">
+          <!-- Dynamically populated -->
+        </div>
+
+        <button id="btn-next-from-results" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-base shadow-xl shadow-blue-600/30 transition transform active:scale-95">
+          Weiter zum Spielbrett ▶️
+        </button>
+
+      </div>
+    </section>
+
+    <!-- ==================== 6. GAME OVER SCREEN ==================== -->
+    <section id="screen-game-over" class="hidden w-full max-w-2xl flex flex-col items-center justify-center my-auto z-20 py-2 sm:py-4">
+      <div class="w-full bg-slate-900/95 border-4 border-amber-400 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col gap-6 text-center backdrop-blur-md max-h-[86vh] overflow-y-auto party-scrollbar">
+        
+        <div>
+          <div class="text-6xl animate-bounce">👑</div>
+          <h2 class="text-3xl font-black text-amber-300 mt-2">SPIEL VORBEI!</h2>
+          <p id="game-over-winner-name" class="text-xl font-bold text-white mt-1">Spieler 1 gewinnt die Class Party!</p>
+        </div>
+
+        <!-- Final Rankings Table -->
+        <div id="game-over-rankings" class="flex flex-col gap-3 text-left max-h-[44vh] overflow-y-auto pr-1.5 party-scrollbar">
+          <!-- Dynamically populated -->
+        </div>
+
+        <button id="btn-play-again" class="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-black text-lg shadow-xl shadow-emerald-500/30 transition transform active:scale-95">
+          Neue Runde spielen 🔄
+        </button>
+
+      </div>
+    </section>
+
+    <!-- ==================== QUICK MINIGAME TEST MODAL ==================== -->
+    <div id="test-minigame-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto party-scrollbar">
+      <div class="max-w-2xl w-full bg-slate-900 border-2 border-indigo-500 rounded-3xl p-6 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 max-h-[86vh] overflow-y-auto party-scrollbar my-auto">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="text-2xl">🎲</span>
+            <h3 class="text-xl font-black text-indigo-300">Minispiel direkt testen</h3>
+          </div>
+          <button id="btn-close-test-minigames" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center font-bold">✕</button>
+        </div>
+        <p class="text-xs text-slate-400">Wähle eines der 13 Minispiele aus, um es sofort mit Spielern / Bots zu starten:</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[52vh] overflow-y-auto pr-1.5 party-scrollbar">
+          <button data-minigame="bombTag" class="btn-launch-minigame p-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-3 text-left transition hover:border-indigo-400">
+            <span class="text-2xl">💣</span>
+            <div><div class="font-bold text-sm text-white">1. Heiße Kartoffel</div><div class="text-xs text-slate-400">Bomb Tag</div></div>
+          </button>
+          <button data-minigame="meteorDodge" class="btn-launch-minigame p-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-3 text-left transition hover:border-indigo-400">
+            <span class="text-2xl">☄️</span>
+            <div><div class="font-bold text-sm text-white">2. Meteor-Ausweichen</div><div class="text-xs text-slate-400">Meteor Dodge</div></div>
+          </button>
+          <button data-minigame="coinShower" class="btn-launch-minigame p-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-3 text-left transition hover:border-indigo-400">
+            <span class="text-2xl">🪙</span>
+            <div><div class="font-bold text-sm text-white">3. Münzregen</div><div class="text-xs text-slate-400">Coin Shower</div></div>
+          </button>
+          <button data-minigame="platformJumper" class="btn-launch-minigame p-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-3 text-left transition hover:border-indigo-400">
+            <span class="text-2xl">🌋</span>
+            <div><div class="font-bold text-sm text-white">4. Lava-Turm</div><div class="text-xs text-slate-400">Platform Jumper</div></div>
+          </button>
+          <button data-minigame="memoryTiles" class="btn-launch-minigame p-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-3 text-left transition hover:border-indigo-400">
+            <span class="text-2xl">🧠</span>
+            <div><div class="font-bold text-sm text-white">5. Boden-Merkspiel</div><div class="text-xs text-slate-400">Memory Tiles</div></div>
+          </button>
+          <button data-minigame="buttonMasher" class="btn-launch-minigame p-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-3 text-left transition hover:border-indigo-400">
+            <span class="text-2xl">🎈</span>
+            <div><div class="font-bold text-sm text-white">6. Ballon-Pumpen</div><div class="text-xs text-slate-400">Button Masher</div></div>
+          </button>
+          <button data-minigame="tankBattle" class="btn-launch-minigame p-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-3 text-left transition hover:border-indigo-400">
+            <span class="text-2xl">🚜</span>
+            <div><div class="font-bold text-sm text-white">7. Mini-Panzer</div><div class="text-xs text-slate-400">Tank Battle</div></div>
+          </button>
+          <button data-minigame="redLightGreenLight" class="btn-launch-minigame p-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-3 text-left transition hover:border-indigo-400">
+            <span class="text-2xl">👁️</span>
+            <div><div class="font-bold text-sm text-white">8. Ochs am Berg</div><div class="text-xs text-slate-400">Red Light, Green Light</div></div>
+          </button>
+          <button data-minigame="paintTheFloor" class="btn-launch-minigame p-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-3 text-left transition hover:border-indigo-400">
+            <span class="text-2xl">🎨</span>
+            <div><div class="font-bold text-sm text-white">9. Gebiete färben</div><div class="text-xs text-slate-400">Paint the Floor</div></div>
+          </button>
+          <button data-minigame="quickReaction" class="btn-launch-minigame p-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-3 text-left transition hover:border-indigo-400">
+            <span class="text-2xl">🤠</span>
+            <div><div class="font-bold text-sm text-white">10. Schnellschuss</div><div class="text-xs text-slate-400">Quick Reaction</div></div>
+          </button>
+          <button data-minigame="quizPlatform" class="btn-launch-minigame p-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-3 text-left transition hover:border-indigo-400">
+            <span class="text-2xl">🧠</span>
+            <div><div class="font-bold text-sm text-white">11. Plattform-Quiz</div><div class="text-xs text-slate-400">IT & BWL (Lava-Plattformen)</div></div>
+          </button>
+          <button data-minigame="quizBuzzer" class="btn-launch-minigame p-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-3 text-left transition hover:border-indigo-400">
+            <span class="text-2xl">⚡</span>
+            <div><div class="font-bold text-sm text-white">12. Cyber-Showdown</div><div class="text-xs text-slate-400">Buzzer-Quiz (Studio)</div></div>
+          </button>
+          <button data-minigame="antigravity" class="btn-launch-minigame p-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-3 text-left transition hover:border-purple-400">
+            <span class="text-2xl">🌀</span>
+            <div><div class="font-bold text-sm text-white">13. Antigravitation</div><div class="text-xs text-purple-300">Antigravity Arena (Decke = Boden)</div></div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== KEYBINDINGS SETTINGS MODAL ==================== -->
+    <div id="settings-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto party-scrollbar">
+      <div class="max-w-3xl w-full bg-slate-900 border-2 border-slate-700 rounded-3xl p-6 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 max-h-[86vh] overflow-y-auto party-scrollbar my-auto">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="text-2xl">⚙️</span>
+            <h3 class="text-xl font-black text-white">Tastatursteuerung anpassen</h3>
+          </div>
+          <button id="btn-close-settings" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center font-bold">✕</button>
+        </div>
+        <p class="text-xs text-slate-400">
+          Klicke auf ein beliebiges Tastenfeld, um eine neue Taste zuzuweisen. Drücke anschließend die gewünschte Taste auf der Tastatur.
+        </p>
+
+        <!-- Warning container for duplicate keys -->
+        <div id="key-conflict-warning" class="hidden p-3 rounded-xl bg-amber-950/80 border border-amber-500 text-amber-300 text-xs font-semibold flex items-center gap-2">
+          <span>⚠️</span> <span id="key-conflict-text">Achtung: Mehrere Aktionen teilen sich dieselbe Taste!</span>
+        </div>
+
+        <!-- Table of 4 players x 5 keys -->
+        <div class="overflow-x-auto max-h-[46vh] overflow-y-auto pr-1 party-scrollbar">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400 uppercase tracking-wider">
+                <th class="py-2.5 px-3">Spieler</th>
+                <th class="py-2.5 px-3">Oben</th>
+                <th class="py-2.5 px-3">Unten</th>
+                <th class="py-2.5 px-3">Links</th>
+                <th class="py-2.5 px-3">Rechts</th>
+                <th class="py-2.5 px-3">Aktion / Sprung</th>
+              </tr>
+            </thead>
+            <tbody id="keybindings-table-body" class="divide-y divide-slate-800/60 font-mono">
+              <!-- Dynamically populated in main.js -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
+          <button id="btn-reset-keybindings" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold text-xs transition">
+            🔄 Auf Standard zurücksetzen
+          </button>
+          <button id="btn-save-settings" class="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition">
+            Fertig / Schließen
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== CHARACTER GALLERY MODAL (9 CLASS HEROES) ==================== -->
+    <div id="character-gallery-modal" class="hidden fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-6 overflow-y-auto party-scrollbar">
+      <div class="max-w-4xl w-full bg-slate-900 border-2 border-amber-400 rounded-3xl p-5 sm:p-7 shadow-2xl flex flex-col gap-5 my-auto animate-in zoom-in-95 max-h-[86vh] overflow-y-auto party-scrollbar">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl">👑</span>
+            <div>
+              <h3 class="text-xl sm:text-2xl font-black text-amber-300">Die 9 Klassen-Helden</h3>
+              <p class="text-xs text-slate-400">Wähle deinen Favoriten oder lade dein eigenes Foto hoch!</p>
+            </div>
+          </div>
+          <button id="btn-close-gallery" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center font-bold text-lg transition">✕</button>
+        </div>
+
+        <!-- 9 Characters Grid + Custom Card -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="gallery-characters-grid">
+          <!-- Populated dynamically in main.js -->
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
+          <button id="btn-gallery-to-upload" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold text-xs shadow-lg transition flex items-center gap-2">
+            <span>📸</span> Eigenes Klassenfoto hochladen
+          </button>
+          <button id="btn-close-gallery-bottom" class="px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition">
+            Schließen
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ==================== CUSTOM CHARACTER UPLOAD MODAL ==================== -->
+    <div id="custom-character-modal" class="hidden fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto party-scrollbar">
+      <div class="max-w-xl w-full bg-slate-900 border-2 border-purple-500 rounded-3xl p-6 sm:p-7 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 my-auto max-h-[86vh] overflow-y-auto party-scrollbar">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl">📸</span>
+            <div>
+              <h3 class="text-xl font-black text-purple-300">Eigenes Foto als Spielfigur</h3>
+              <p class="text-xs text-slate-400">Lade ein Bild von dir, Mitschülern oder Lehrern hoch!</p>
+            </div>
+          </div>
+          <button id="btn-close-upload-char" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center font-bold">✕</button>
+        </div>
+
+        <!-- Dropzone / File input -->
+        <div id="upload-dropzone" class="border-2 border-dashed border-purple-500/60 hover:border-purple-400 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 text-center cursor-pointer bg-purple-950/20 hover:bg-purple-950/40 transition">
+          <input type="file" id="input-custom-avatar" accept="image/*" class="hidden">
+          <div id="upload-preview-container" class="hidden w-24 h-24 rounded-2xl overflow-hidden border-2 border-purple-400 shadow-xl mb-1">
+            <img id="upload-preview-img" src="" alt="Vorschau" class="w-full h-full object-cover">
+          </div>
+          <div id="upload-placeholder-icon" class="text-4xl">📁</div>
+          <div class="text-sm font-bold text-white" id="upload-label">Klicke hier oder ziehe ein Bild hinein</div>
+          <p class="text-[11px] text-slate-400">PNG, JPG, WebP oder GIF (Quadratisch empfohlen)</p>
+        </div>
+
+        <!-- Metadata fields -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Name der Spielfigur</label>
+            <input id="input-custom-name" type="text" maxlength="20" placeholder="z. B. Herr Müller" class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs focus:outline-none focus:border-purple-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Titel / Rolle</label>
+            <input id="input-custom-title" type="text" maxlength="26" placeholder="z. B. Der Mathe-Guru" class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs focus:outline-none focus:border-purple-500">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Spruch / Zitat</label>
+            <input id="input-custom-quote" type="text" maxlength="60" placeholder="„Klausur ist nächste Woche!“" class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs focus:outline-none focus:border-purple-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Spielfarbe</label>
+            <select id="select-custom-color" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs">
+              <option value="#A855F7" selected>🟣 Lila / Magic</option>
+              <option value="#EF4444">🔴 Rot / Feuer</option>
+              <option value="#3B82F6">🔵 Blau / Cyber</option>
+              <option value="#10B981">🟢 Grün / Chill</option>
+              <option value="#F59E0B">🟡 Gold / Flex</option>
+              <option value="#EC4899">🌸 Pink / Drache</option>
+              <option value="#F97316">🟠 Orange / Gaming</option>
+              <option value="#38BDF8">⚡ Ultra / Cyan</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Spezial-Aura</label>
+            <select id="select-custom-aura" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs">
+              <option value="rgb" selected>🌈 RGB-Rainbow Glow</option>
+              <option value="gold">✨ Goldglanz & Sterne</option>
+              <option value="fire">🔥 Lodernde Feuer-Aura</option>
+              <option value="ultra_instinct">⚡ Ultra Instinct Pulsieren</option>
+              <option value="magic">🔮 Magische Partikel</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+          <button id="btn-cancel-upload-char" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition">
+            Abbrechen
+          </button>
+          <button id="btn-save-custom-char" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-emerald-500 hover:from-purple-500 hover:to-emerald-400 text-white font-extrabold text-xs shadow-lg transition transform active:scale-95">
+            Speichern & Auswählen ✨
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ==================== LEAVE GAME CONFIRMATION MODAL ==================== -->
+    <div id="leave-confirm-modal" class="hidden fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center z-50 p-4">
+      <div class="max-w-md w-full bg-slate-900 border-2 border-red-500 rounded-3xl p-6 shadow-2xl flex flex-col items-center text-center gap-4 animate-in zoom-in-95">
+        <div class="text-5xl animate-bounce">🚪</div>
+        <h3 class="text-2xl font-black text-red-400">Spiel wirklich verlassen?</h3>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Dein Platz wird für die restliche Runde nahtlos von einem fairen KI-Bot übernommen (oder dein Teampartner spielt alleine weiter), damit das Spiel für alle anderen normal weiterläuft.
+        </p>
+        <div class="flex items-center gap-3 w-full mt-2">
+          <button id="btn-cancel-leave" class="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition cursor-pointer">
+            Abbrechen (Weiterspielen)
+          </button>
+          <button id="btn-confirm-leave" class="flex-1 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-extrabold text-xs shadow-lg transition transform active:scale-95 cursor-pointer">
+            Ja, Spiel verlassen 🚪
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== WUNSCH-WÜRFEL SELECTION MODAL ==================== -->
+    <div id="wish-dice-modal" class="hidden fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center z-50 p-4">
+      <div class="max-w-md w-full bg-slate-900 border-2 border-amber-400 rounded-3xl p-6 shadow-2xl flex flex-col items-center text-center gap-4 animate-in zoom-in-95">
+        <div class="text-5xl animate-bounce">⭐</div>
+        <h3 class="text-2xl font-black text-amber-300">Wunsch-Würfel!</h3>
+        <p class="text-xs text-slate-300">
+          Wähle deine exakte Wunsch-Augenzahl (1 bis 10) für deinen Zug:
+        </p>
+        <div class="grid grid-cols-5 gap-2.5 w-full my-2" id="wish-dice-options">
+          <button data-steps="1" class="btn-pick-wish-step py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base transition cursor-pointer">1</button>
+          <button data-steps="2" class="btn-pick-wish-step py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base transition cursor-pointer">2</button>
+          <button data-steps="3" class="btn-pick-wish-step py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base transition cursor-pointer">3</button>
+          <button data-steps="4" class="btn-pick-wish-step py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base transition cursor-pointer">4</button>
+          <button data-steps="5" class="btn-pick-wish-step py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base transition cursor-pointer">5</button>
+          <button data-steps="6" class="btn-pick-wish-step py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base transition cursor-pointer">6</button>
+          <button data-steps="7" class="btn-pick-wish-step py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base transition cursor-pointer">7</button>
+          <button data-steps="8" class="btn-pick-wish-step py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base transition cursor-pointer">8</button>
+          <button data-steps="9" class="btn-pick-wish-step py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base transition cursor-pointer">9</button>
+          <button data-steps="10" class="btn-pick-wish-step py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base transition cursor-pointer">10</button>
+        </div>
+        <button id="btn-cancel-wish-dice" class="text-xs text-slate-400 hover:text-white transition cursor-pointer">Abbrechen</button>
+      </div>
+    </div>
+
+    <!-- Vollbild-Konfetti-Canvas für Gag-Items & Siegerehrungen -->
+    <canvas id="party-confetti-canvas" class="pointer-events-none fixed inset-0 w-full h-full z-50 hidden"></canvas>
+
+    <!-- Toast Feedback for Teams Copy -->
+    <div id="teams-copy-feedback" class="hidden fixed bottom-6 right-6 z-50 bg-emerald-600 text-white font-black px-6 py-3.5 rounded-2xl shadow-2xl border-2 border-emerald-300 flex items-center gap-3 animate-in slide-in-from-bottom duration-200">
+      <span class="text-2xl">🎉</span>
+      <div>
+        <div class="text-sm">In die Zwischenablage kopiert!</div>
+        <div class="text-xs font-normal text-emerald-100">Öffne Microsoft Teams und drücke STRG+V im Klassen-Chat! 🚀</div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- SCRIPTS (Relative paths for static deployment on GitHub Pages / Netlify / Vercel) -->
+  <script src="js/core/audio.js"></script>
+  <script src="js/board/characters.js"></script>
+  <script src="js/minigames/questionBank.js"></script>
+  <script src="js/board/duelEngine.js"></script>
+  <script src="js/core/qrcode.js"></script>
+  <script src="js/board/board.js"></script>
+  <script src="js/board/dice.js"></script>
+  <script src="js/core/bot.js"></script>
+  <script src="js/minigames/minigameBase.js"></script>
+  <script src="js/minigames/bombTag.js"></script>
+  <script src="js/minigames/meteorDodge.js"></script>
+  <script src="js/minigames/coinShower.js"></script>
+  <script src="js/minigames/platformJumper.js"></script>
+  <script src="js/minigames/memoryTiles.js"></script>
+  <script src="js/minigames/buttonMasher.js"></script>
+  <script src="js/minigames/tankBattle.js"></script>
+  <script src="js/minigames/redLightGreenLight.js"></script>
+  <script src="js/minigames/paintTheFloor.js"></script>
+  <script src="js/minigames/quickReaction.js"></script>
+  <script src="js/minigames/quizPlatform.js"></script>
+  <script src="js/minigames/quizBuzzer.js"></script>
+  <script src="js/minigames/antigravityRun.js"></script>
+  <script src="js/minigames/minigameRegistry.js"></script>
+  <script src="js/core/network.js"></script>
+  <script src="js/core/game.js"></script>
+  <script src="js/core/main.js"></script>
+</body>
+</html>
