@@ -68,7 +68,25 @@ const PORT = parseInt(process.env.PORT, 10) || 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(__dirname));
-console.log('  [STARTUP 3/4] Web-Verzeichnisse (public & root) erfolgreich eingebunden.');
+
+// Explizite Routen fuer Root & Health Check auf Render.com
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/healthz', (req, res) => {
+  res.status(200).send('OK');
+});
+
+// SPA Fallback: Liefert index.html fuer HTML-Anfragen (kompatibel mit Express 5)
+app.use((req, res, next) => {
+  if (req.method === 'GET' && req.accepts('html')) {
+    res.sendFile(path.join(__dirname, 'index.html'));
+  } else {
+    next();
+  }
+});
+console.log('  [STARTUP 3/4] Web-Verzeichnisse (public & root) und HTML-Routen erfolgreich eingebunden.');
 
 // Helper to determine the host machine's local IPv4 network address
 function getLocalIp() {
