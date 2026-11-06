@@ -220,7 +220,8 @@ class PartyGame {
       }
     ];
 
-    this.board = new window.GameBoard();
+    this.boardId = 'board_1';
+    this.board = new window.GameBoard(this.boardId);
     this.dice = new window.DiceRoller();
     this.bot = new window.BotController(this);
     this.boardCanvas = document.getElementById('board-canvas');
@@ -362,6 +363,12 @@ class PartyGame {
   }
 
   syncWithRoom(room, myIndex) {
+    if (room.boardId && this.boardId !== room.boardId) {
+      this.boardId = room.boardId;
+      if (this.board && this.board.loadBoard) {
+        this.board.loadBoard(this.boardId);
+      }
+    }
     this.round = room.round;
     this.maxRounds = room.maxRounds;
     this.turnIndex = room.turnIndex;
@@ -1072,6 +1079,14 @@ class PartyGame {
       if (window.soundEngine) window.soundEngine.playCoin();
       this.showFloatingText(player, '+5 🪙 START!', '#8B5CF6');
       if (this.board.spawnParticles) this.board.spawnParticles(tile.x, tile.y, '#A78BFA', 20, 80, 0.5);
+    } else if (tile.type === 'finish') {
+      coinDelta = 10;
+      player.coins += coinDelta;
+      this.setPlayerEmote(player, 'cheer');
+      if (window.soundEngine) window.soundEngine.playCoin();
+      this.showFloatingText(player, '+10 🪙 ZIEL!', '#EAB308');
+      if (this.board.spawnParticles) this.board.spawnParticles(tile.x, tile.y, '#FACC15', 30, 100, 0.7);
+      this.showToast(`🏁 ZIEL-DURCHLAUF! ${player.name} erhält +10🪙 Runden-Bonus!`);
     }
 
     this.updateHUD();
@@ -1731,6 +1746,10 @@ class PartyGame {
     if (window.soundEngine) window.soundEngine.playEvent();
 
     const biomeIcons = {
+      egypt: '🏜️',
+      ocean: '🐬',
+      space: '🚀',
+      city: '🏙️',
       island: '🐬',
       jungle: '🌴',
       ghost_town: '👻',
@@ -1747,7 +1766,19 @@ class PartyGame {
     let moveForward = 0;
     let moveBackward = 0;
 
-    if (biomeEv.effect === 'dolphin_wave') {
+    if (biomeEv.coins) {
+      player.coins += biomeEv.coins;
+      this.setPlayerEmote(player, 'cheer');
+      if (window.soundEngine) window.soundEngine.playCoin();
+      this.showFloatingText(player, `+${biomeEv.coins} 🪙`, '#F59E0B');
+    } else if (biomeEv.advance) {
+      moveForward = biomeEv.advance;
+      this.setPlayerEmote(player, 'cheer');
+      if (window.soundEngine) window.soundEngine.playBoost();
+    } else if (biomeEv.item) {
+      this.addItem(playerIndex, biomeEv.item);
+      this.setPlayerEmote(player, 'cheer');
+    } else if (biomeEv.effect === 'dolphin_wave') {
       moveForward = biomeEv.advance || 5;
       this.setPlayerEmote(player, 'cheer');
       if (window.soundEngine) window.soundEngine.playBoost();

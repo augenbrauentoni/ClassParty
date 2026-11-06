@@ -1,15 +1,25 @@
 {
   "name": "class-party-spiel",
   "version": "1.0.0",
-  "main": "PartySpiel.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node PartySpiel.js",
-    "dev": "node PartySpiel.js"
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node tests/qa_simulation.js"
   },
-  "keywords": [],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "mario-party",
+    "boardgame",
+    "multiplayer",
+    "socket-io",
+    "school-game"
+  ],
   "author": "",
   "license": "ISC",
-  "description": "2D Mario-Party-Stil Brettspiel für Schulklassen",
+  "description": "2D Mario-Party-Stil Brettspiel für Schulklassen (Online-Multiplayer)",
   "dependencies": {
     "@ngrok/ngrok": "^1.7.0",
     "express": "^5.3.0",

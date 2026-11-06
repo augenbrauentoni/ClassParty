@@ -1,26 +1,25 @@
-// board.js - Großes 5-Themen-Inseln Spielbrett für "Class Party"
-// 3200 x 2200 Pixel virtuelle Weltkarte mit Smart-Kamera, Zoom & Schwenk
-// 5 klar getrennte Themen-Inseln über Brücken verbunden (66 Felder, 65x65px groß)
+// board.js - Modular GameBoard for "Class Party"
+// Unterstützt modulare Boards über den BoardManager:
+// - Spielbrett 1 ("board_1"): Vier Welten (Ägypten, Ozean, Weltraum, Stadt) mit 53 Wegpunkten
+// - Spielbrett Klassisch ("board_classic"): 5 Inselwelten mit prozeduralem Canvas-Terrain
 
 (function() {
   class GameBoard {
-    constructor() {
-      // Große virtuelle Weltkarte
-      this.width = 3200;
-      this.height = 2200;
-      this.starTileIndex = 18;
+    constructor(boardId = 'board_1') {
       this.jackpotCoins = 10;
       this.particles = [];
+      this.loadedImages = {};
+      this.setupCameraListenersDone = false;
 
       // Smart-Kamera System
       this.camera = {
-        x: 600,
-        y: 600,
-        zoom: 0.95,
-        targetX: 600,
-        targetY: 600,
-        targetZoom: 0.95,
-        isOverview: false,
+        x: 960,
+        y: 536,
+        zoom: 0.72,
+        targetX: 960,
+        targetY: 536,
+        targetZoom: 0.72,
+        isOverview: true,
         isDragging: false,
         dragStartX: 0,
         dragStartY: 0,
@@ -28,25 +27,92 @@
         lastCamY: 0
       };
 
-      this.initTiles();
-      this.setupCameraListenersDone = false;
+      this.loadBoard(boardId);
     }
 
     // =========================================================================
-    // 1. WEGE- & FELDER-ARCHITEKTUR (66 Felder, min. 65x65 Pixel, 5 Inseln)
+    // 1. MODULARE BRETT-INITIALISIERUNG ÜBER BOARDMANAGER
     // =========================================================================
-    initTiles() {
-      // Insel-Zentren (im Uhrzeigersinn angeordnet):
-      // 1. Inselparadies: Oben-Links (~600, 520)
-      // 2. Dschungel-Tempel: Oben-Mitte/Rechts (~1800, 480)
-      // 3. Geisterstadt: Rechts/Mitte-Rechts (~2600, 1150)
-      // 4. Schule: Unten-Mitte (~1750, 1680)
-      // 5. Pyramidenwüste: Unten-Links (~650, 1600)
+    loadBoard(boardId) {
+      const bm = window.BoardManager;
+      const config = bm ? bm.getBoard(boardId) : null;
 
+      if (!config) {
+        console.warn(`[GameBoard] Konfiguration für "${boardId}" nicht gefunden, verwende Fallback.`);
+        this.boardConfig = {
+          boardId: 'board_1',
+          name: 'Vier Welten',
+          virtualWidth: 1920,
+          virtualHeight: 1072.5,
+          isImageBased: true,
+          backgroundImageUrl: 'assets/Spielfeld1.jpg',
+          tileCoordinates: []
+        };
+      } else {
+        this.boardConfig = config;
+      }
+
+      this.width = this.boardConfig.virtualWidth || 1920;
+      this.height = this.boardConfig.virtualHeight || 1072.5;
+      this.starTileIndex = this.boardConfig.defaultStarTileIndex || 18;
+
+      if (this.boardConfig.isImageBased && this.boardConfig.backgroundImageUrl) {
+        this.initImageBasedBoard(this.boardConfig);
+      } else {
+        this.initClassicProceduralBoard();
+      }
+
+      // Initialisiere Kamera auf Mitte des Brettes
+      this.camera.x = this.width / 2;
+      this.camera.y = this.height / 2;
+      this.camera.targetX = this.width / 2;
+      this.camera.targetY = this.height / 2;
+      this.camera.isOverview = true;
+    }
+
+    initImageBasedBoard(config) {
+      // Preload Hintergrundbild
+      if (!this.loadedImages[config.backgroundImageUrl]) {
+        const img = new Image();
+        img.src = config.backgroundImageUrl;
+        img.onload = () => {
+          this.bgImageLoaded = true;
+        };
+        this.loadedImages[config.backgroundImageUrl] = img;
+      }
+      this.bgImage = this.loadedImages[config.backgroundImageUrl];
+
+      // Mappe relative Prozentkoordinaten (0..100) auf virtuelle Pixelkoordinaten
+      const rawCoords = config.tileCoordinates || [];
+      const totalTiles = rawCoords.length;
+
+      this.tiles = rawCoords.map((t, idx) => {
+        const x = Math.round((t.pctX / 100) * this.width);
+        const y = Math.round((t.pctY / 100) * this.height);
+        // Schlangenlinie schließt sich am Ziel wieder zur Startrunde zusammen
+        const next = [(t.id + 1) % totalTiles];
+
+        return {
+          id: t.id !== undefined ? t.id : idx,
+          x,
+          y,
+          pctX: t.pctX,
+          pctY: t.pctY,
+          type: t.type || 'blue',
+          label: t.label || '',
+          zone: t.zone || 'egypt',
+          visualText: t.visualText || `${idx + 1}`,
+          next
+        };
+      });
+
+      console.log(`[GameBoard] Spielbrett "${config.boardId}" geladen: ${this.tiles.length} Wegpunkte aktiv.`);
+    }
+
+    initClassicProceduralBoard() {
+      // Klassisches 66-Felder Insel-Brett (Fallback für Classic-Modus)
       const rawTiles = [
-        // =====================================================================
-        // 1. INSELPARADIES (Felder 0 bis 12) - Oben-Links
-        // =====================================================================
+        // Inselparadies (0..12)
         { id: 0,  x: 280,  y: 680, type: 'start', label: 'START' },
         { id: 1,  x: 390,  y: 620, type: 'blue' },
         { id: 2,  x: 500,  y: 560, type: 'blue' },
@@ -60,17 +126,13 @@
         { id: 10, x: 520,  y: 300, type: 'fork',  label: 'GABELUNG 1' },
         { id: 11, x: 410,  y: 370, type: 'duel',  label: 'DUELL' },
         { id: 12, x: 330,  y: 470, type: 'boost', label: 'BOOST' },
-
-        // GROSSE BRÜCKE 1: Insel -> Dschungel
-        // =====================================================================
-        // 2. DSCHUNGEL-TEMPEL (Felder 13 bis 25) - Oben-Mitte
-        // =====================================================================
+        // Dschungel (13..25)
         { id: 13, x: 1250, y: 380, type: 'blue', label: 'BRÜCKE' },
         { id: 14, x: 1450, y: 380, type: 'blue' },
         { id: 15, x: 1600, y: 400, type: 'event', label: 'DSCHUNGEL' },
         { id: 16, x: 1730, y: 360, type: 'shop',  label: 'SHOP' },
         { id: 17, x: 1870, y: 330, type: 'blue' },
-        { id: 18, x: 2010, y: 340, type: 'swap',  label: 'TAUSCH' }, // Initialer Stern
+        { id: 18, x: 2010, y: 340, type: 'swap',  label: 'TAUSCH' },
         { id: 19, x: 2130, y: 390, type: 'red' },
         { id: 20, x: 2210, y: 480, type: 'roulette', label: 'GLÜCK' },
         { id: 21, x: 2160, y: 590, type: 'duel',  label: 'DUELL' },
@@ -78,11 +140,7 @@
         { id: 23, x: 1910, y: 650, type: 'fork',  label: 'GABELUNG 2' },
         { id: 24, x: 1770, y: 620, type: 'boost', label: 'BOOST' },
         { id: 25, x: 1640, y: 540, type: 'blue' },
-
-        // GROSSE BRÜCKE 2: Dschungel -> Geisterstadt
-        // =====================================================================
-        // 3. GEISTERSTADT (Felder 26 bis 38) - Rechts
-        // =====================================================================
+        // Geisterstadt (26..38)
         { id: 26, x: 2420, y: 800,  type: 'blue', label: 'VIADUKT' },
         { id: 27, x: 2560, y: 920,  type: 'blue' },
         { id: 28, x: 2670, y: 1020, type: 'boo',   label: 'BOO' },
@@ -96,11 +154,7 @@
         { id: 36, x: 2360, y: 1270, type: 'swap',  label: 'TAUSCH' },
         { id: 37, x: 2410, y: 1150, type: 'fork',  label: 'GABELUNG 3' },
         { id: 38, x: 2510, y: 1090, type: 'duel',  label: 'DUELL' },
-
-        // GROSSE BRÜCKE 3: Geisterstadt -> Schule
-        // =====================================================================
-        // 4. DIE SCHULE (Felder 39 bis 51) - Unten-Mitte
-        // =====================================================================
+        // Schule (39..51)
         { id: 39, x: 2260, y: 1680, type: 'bank',  label: 'BANK' },
         { id: 40, x: 2110, y: 1720, type: 'blue',  label: 'SCHULE' },
         { id: 41, x: 1980, y: 1720, type: 'event', label: 'TEST' },
@@ -114,11 +168,7 @@
         { id: 49, x: 1940, y: 1410, type: 'blue' },
         { id: 50, x: 2010, y: 1510, type: 'event', label: 'TEST' },
         { id: 51, x: 1960, y: 1610, type: 'bank',  label: 'BANK' },
-
-        // GROSSE BRÜCKE 4: Schule -> Pyramidenwüste
-        // =====================================================================
-        // 5. PYRAMIDENWÜSTE (Felder 52 bis 65) - Unten-Links
-        // =====================================================================
+        // Pyramidenwüste (52..65)
         { id: 52, x: 1320, y: 1650, type: 'blue',  label: 'OASEN-WEG' },
         { id: 53, x: 1140, y: 1650, type: 'blue',  label: 'WÜSTE' },
         { id: 54, x: 990,  y: 1670, type: 'bowser', label: 'CHAOS' },
@@ -132,34 +182,27 @@
         { id: 62, x: 500,  y: 1330, type: 'swap',  label: 'TAUSCH' },
         { id: 63, x: 630,  y: 1310, type: 'event', label: 'OASE' },
         { id: 64, x: 740,  y: 1360, type: 'bank',  label: 'BANK' },
-        { id: 65, x: 800,  y: 1470, type: 'blue',  label: 'DAMM' } // Führt zurück zu 0!
+        { id: 65, x: 800,  y: 1470, type: 'blue',  label: 'DAMM' }
       ];
 
-      // Verbindungsgraph
       this.tiles = rawTiles.map(t => {
         let next = [];
-        if (t.id === 65) {
-          next = [0]; // Schleifenschluss zur Startinsel!
-        } else if (t.id === 10) {
-          next = [11, 13]; // Gabelung 1: Insel-Rundweg vs. Brücke zu Dschungel
-        } else if (t.id === 23) {
-          next = [24, 26]; // Gabelung 2: Tempel-Innenhof vs. Viadukt zu Geisterstadt
-        } else if (t.id === 37) {
-          next = [38, 39]; // Gabelung 3: Saloon vs. Bohlenweg zu Schule
-        } else if (t.id === 48) {
-          next = [49, 52]; // Gabelung 4: Schulhof vs. Oasenbrücke zu Pyramiden
-        } else {
-          next = [t.id + 1];
-        }
+        if (t.id === 65) next = [0];
+        else if (t.id === 10) next = [11, 13];
+        else if (t.id === 23) next = [24, 26];
+        else if (t.id === 37) next = [38, 39];
+        else if (t.id === 48) next = [49, 52];
+        else next = [t.id + 1];
 
-        return {
-          ...t,
-          next
-        };
+        return { ...t, next, visualText: `${t.id + 1}` };
       });
     }
 
+    // =========================================================================
+    // 2. WEGE- & NAVIGATIONSLOGIK
+    // =========================================================================
     getTile(id) {
+      if (!this.tiles || this.tiles.length === 0) return null;
       return this.tiles[id] || this.tiles[0];
     }
 
@@ -211,150 +254,130 @@
     }
 
     getRandomStarTile(excludeIndex = -1) {
+      if (!this.tiles || this.tiles.length === 0) return 18;
       const validTiles = this.tiles
         .map((t, idx) => idx)
         .filter(idx => {
           const t = this.tiles[idx];
-          return idx !== excludeIndex && t.type !== 'start' && t.type !== 'fork' && t.type !== 'bowser';
+          return idx !== excludeIndex && t.type !== 'start' && t.type !== 'finish' && t.type !== 'fork' && t.type !== 'bowser';
         });
+      if (validTiles.length === 0) return 18;
       return validTiles[Math.floor(Math.random() * validTiles.length)];
     }
 
     getBiome(tileIndex) {
-      if (tileIndex <= 12) return 'island';
-      if (tileIndex <= 25) return 'jungle';
-      if (tileIndex <= 38) return 'ghost_town';
-      if (tileIndex <= 51) return 'school';
-      return 'desert';
+      const tile = this.getTile(tileIndex);
+      if (tile && tile.zone) return tile.zone;
+      if (tileIndex <= 10) return 'egypt';
+      if (tileIndex <= 24) return 'ocean';
+      if (tileIndex <= 41) return 'space';
+      return 'city';
     }
 
     getBiomeEvent(tileIndex) {
-      const biome = this.getBiome(tileIndex);
-      if (biome === 'island') {
+      const biomeId = this.getBiome(tileIndex);
+      const zones = (this.boardConfig && this.boardConfig.themeZones) || [];
+      const zoneObj = zones.find(z => z.id === biomeId);
+
+      if (zoneObj && zoneObj.events && zoneObj.events.length > 0) {
+        const ev = zoneObj.events[Math.floor(Math.random() * zoneObj.events.length)];
         return {
-          biome,
-          title: '🐬 Delfin-Welle!',
-          desc: 'Eine freundliche Delfin-Welle trägt dich 5 Felder vorwärts zum nächsten Strandabschnitt!',
-          effect: 'dolphin_wave',
-          advance: 5
+          biome: biomeId,
+          title: ev.title,
+          desc: ev.desc,
+          coins: ev.coins,
+          advance: ev.advance,
+          item: ev.item
         };
-      } else if (biome === 'jungle') {
-        const isLiana = Math.random() < 0.65;
-        if (isLiana) {
-          return {
-            biome,
-            title: '🌿 Lianen-Schwung!',
-            desc: 'Du ergreifst eine dicke Liane und schwingst 4 Felder weit über die Baumkronen!',
-            effect: 'liana_swing',
-            advance: 4
-          };
-        } else {
-          return {
-            biome,
-            title: '🌺 Fleischfressende Pflanze!',
-            desc: 'Schnapp! Eine Riesenblüte schnappt nach dir und kostet dich 5 Münzen!',
-            effect: 'plant_bite',
-            damage: 5
-          };
-        }
-      } else if (biome === 'ghost_town') {
+      }
+
+      // Default Fallback Events
+      if (biomeId === 'egypt') {
         return {
-          biome,
-          title: '👻 Geister-Spuk!',
-          desc: 'Ein schwebendes Gespenst spukt durch die Geisterstadt und stiehlt 4 Münzen von einem Mitspieler!',
-          effect: 'ghost_spook'
+          biome: biomeId,
+          title: '🏜️ Geheimnis der Sphinx',
+          desc: 'Ein uralter Goldschatz wird im Sand freigelegt: Du erhältst +5 Münzen!',
+          coins: 5
         };
-      } else if (biome === 'school') {
+      } else if (biomeId === 'ocean') {
         return {
-          biome,
-          title: '📝 Überraschungs-Test!',
-          desc: 'Der Lehrer ruft: „Kurztest!“. Beantworte die Fachfrage richtig für +12🪙 (Note 1) oder kassiere -5🪙!',
-          effect: 'surprise_quiz'
+          biome: biomeId,
+          title: '🐬 Delfin-Welle',
+          desc: 'Eine Welle freundlicher Delfine trägt dich +3 Felder vorwärts!',
+          advance: 3
+        };
+      } else if (biomeId === 'space') {
+        return {
+          biome: biomeId,
+          title: '🚀 Kosmischer Antrieb',
+          desc: 'Kosmischer Rückenwind: Du erhältst einen Wunsch-Würfel!',
+          item: 'gold_dice'
         };
       } else {
-        const isTreasure = Math.random() < 0.6;
-        if (isTreasure) {
-          return {
-            biome,
-            title: '👑 Pharaonen-Schatz!',
-            desc: 'Du entdeckst eine geheime Grabkammer voller Gold! Du erhältst +15 Münzen!',
-            effect: 'pharaoh_treasure',
-            coins: 15
-          };
-        } else {
-          return {
-            biome,
-            title: '🌪️ Treibsand-Wirbel!',
-            desc: 'Ein tückischer Treibsand-Trichter zieht dich 4 Felder zurück!',
-            effect: 'quicksand',
-            retreat: 4
-          };
-        }
+        return {
+          biome: biomeId,
+          title: '🚇 City-Rush & U-Bahn',
+          desc: 'Du nimmst die Abkürzung und springst +3 Felder vorwärts!',
+          advance: 3
+        };
       }
     }
 
     // =========================================================================
-    // 2. SMART-KAMERA (Smooth Zoom, Follow Player, Drag & Pan, Overview Mode M)
+    // 3. KAMERA & INTERAKTIVITÄT
     // =========================================================================
     setupCameraListeners(canvas) {
-      if (this.setupCameraListenersDone || !canvas) return;
+      if (this.setupCameraListenersDone) return;
       this.setupCameraListenersDone = true;
 
-      // 1. Mouse Drag & Pan
       canvas.addEventListener('mousedown', (e) => {
         this.camera.isDragging = true;
         this.camera.dragStartX = e.clientX;
         this.camera.dragStartY = e.clientY;
         this.camera.lastCamX = this.camera.targetX;
         this.camera.lastCamY = this.camera.targetY;
-        canvas.style.cursor = 'grabbing';
       });
 
       window.addEventListener('mousemove', (e) => {
         if (!this.camera.isDragging) return;
         const dx = (e.clientX - this.camera.dragStartX) / this.camera.zoom;
         const dy = (e.clientY - this.camera.dragStartY) / this.camera.zoom;
-        this.camera.targetX = Math.max(400, Math.min(this.width - 400, this.camera.lastCamX - dx));
-        this.camera.targetY = Math.max(300, Math.min(this.height - 300, this.camera.lastCamY - dy));
+        this.camera.targetX = this.camera.lastCamX - dx;
+        this.camera.targetY = this.camera.lastCamY - dy;
+        this.camera.isOverview = false;
       });
 
       window.addEventListener('mouseup', () => {
-        if (this.camera.isDragging) {
-          this.camera.isDragging = false;
-          if (canvas) canvas.style.cursor = 'grab';
-        }
+        this.camera.isDragging = false;
       });
 
-      // 2. Mouse Wheel Zoom (0.42 bis 2.0)
+      // Mausrad Zoom
       canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const factor = e.deltaY < 0 ? 1.12 : 0.89;
-        const newZoom = Math.max(0.42, Math.min(2.1, this.camera.targetZoom * factor));
-        this.camera.targetZoom = newZoom;
+        const zoomDelta = e.deltaY < 0 ? 0.1 : -0.1;
+        this.camera.targetZoom = Math.max(0.35, Math.min(2.5, this.camera.targetZoom + zoomDelta));
         this.camera.isOverview = false;
       }, { passive: false });
 
-      // 3. Tastatur: M = Gesamtübersicht toggle
+      // Tastatur-Shortcuts
       window.addEventListener('keydown', (e) => {
-        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
-        if (e.code === 'KeyM') {
-          this.toggleOverviewMode(canvas);
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (e.key === 'm' || e.key === 'M') {
+          this.toggleOverview();
         }
       });
-
-      canvas.style.cursor = 'grab';
     }
 
-    toggleOverviewMode(canvas) {
+    toggleOverview(canvas) {
       this.camera.isOverview = !this.camera.isOverview;
       if (this.camera.isOverview) {
-        // Übersicht über alle 5 Inseln
         this.camera.targetX = this.width / 2;
         this.camera.targetY = this.height / 2;
-        this.camera.targetZoom = 0.44;
+        const cWidth = canvas ? canvas.width : 1400;
+        const cHeight = canvas ? canvas.height : 880;
+        this.camera.targetZoom = Math.min(cWidth / this.width, cHeight / this.height) * 0.95;
       } else {
-        // Zurück zum Fokus
-        this.camera.targetZoom = 1.05;
+        this.camera.targetZoom = 1.15;
       }
     }
 
@@ -363,45 +386,47 @@
       const tile = this.getTile(player.boardPosition);
       if (tile) {
         this.camera.targetX = tile.x;
-        this.camera.targetY = tile.y - 40;
-        if (this.camera.isOverview) {
-          this.camera.targetZoom = 1.05;
-          this.camera.isOverview = false;
-        }
+        this.camera.targetY = tile.y - 20;
+        this.camera.targetZoom = 1.15;
+        this.camera.isOverview = false;
       }
     }
 
-    updateCamera(activePlayer, dt = 0.016) {
-      // Wenn nicht vom User per Maus gezogen und nicht in Gesamtübersicht, folge dem aktiven Spieler
+    updateCamera(activePlayer, canvas) {
       if (!this.camera.isDragging && !this.camera.isOverview && activePlayer) {
         const tile = this.getTile(activePlayer.boardPosition);
         if (tile) {
           this.camera.targetX = tile.x;
-          this.camera.targetY = tile.y - 40;
+          this.camera.targetY = tile.y - 20;
         }
       }
 
-      // Butterweiche Kamera-Interpolation (Lerp)
-      const lerpSpeed = 0.085;
+      if (this.camera.isOverview && canvas) {
+        const fitZoom = Math.min(canvas.width / this.width, canvas.height / this.height) * 0.96;
+        this.camera.targetZoom = fitZoom;
+        this.camera.targetX = this.width / 2;
+        this.camera.targetY = this.height / 2;
+      }
+
+      const lerpSpeed = 0.09;
       this.camera.x += (this.camera.targetX - this.camera.x) * lerpSpeed;
       this.camera.y += (this.camera.targetY - this.camera.y) * lerpSpeed;
       this.camera.zoom += (this.camera.targetZoom - this.camera.zoom) * lerpSpeed;
     }
 
     // =========================================================================
-    // 3. RENDERING: DIE 5 THEMEN-INSELN, BRÜCKEN, GROSSE FELDER & FIGUREN
+    // 4. RENDERING: HINTERGRUNDBILD, WEGPUNKTE, FIGUREN & EFFEKTE
     // =========================================================================
     render(ctx, players, turnIndex, starTileIndex, time = 0) {
       const canvas = ctx.canvas;
       this.setupCameraListeners(canvas);
 
-      // Aktualisiere Kamera
       const activePlayer = players && players[turnIndex];
-      this.updateCamera(activePlayer);
+      this.updateCamera(activePlayer, canvas);
 
       ctx.save();
-      // Hintergrund / Ozean
-      ctx.fillStyle = '#0F172A';
+      // Leere dunkle Spielfläche
+      ctx.fillStyle = '#050814';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Kamera-Transformation
@@ -409,493 +434,262 @@
       ctx.scale(this.camera.zoom, this.camera.zoom);
       ctx.translate(-this.camera.x, -this.camera.y);
 
-      // 1. Großes Wasser-/Hintergrund-Gitter
-      this.drawDeepOcean(ctx, time);
+      if (this.boardConfig && this.boardConfig.isImageBased) {
+        // --- 1. BILD-BASIERTES BRETT (SPIELBRETT 1) ---
+        this.drawImageBoard(ctx, time);
+        this.drawImageBoardWaypoints(ctx, starTileIndex, time);
+      } else {
+        // --- 2. KLASSISCHES PROZEDURALES BRETT ---
+        this.drawDeepOcean(ctx, time);
+        this.drawThemedIslands(ctx, time);
+        this.drawBridges(ctx, time);
+        this.drawPathWithArrows(ctx, time);
+        this.drawClassicTiles(ctx, starTileIndex, time);
+      }
 
-      // 2. Die 5 großen Themen-Inseln zeichnen
-      this.drawThemedIslands(ctx, time);
-
-      // 3. Große Verbindungsbrücken zwischen den Inseln
-      this.drawBridges(ctx, time);
-
-      // 4. Pfad-Linien mit leuchtenden Richtungspfeilen
-      this.drawPathWithArrows(ctx, time);
-
-      // 5. Große 65x65px Spielfelder
-      this.drawTiles(ctx, starTileIndex, time);
-
-      // 6. Schwebender Sternblock
+      // 3. Schwebender Stern
       this.drawFloatingStar(ctx, starTileIndex, time);
 
-      // 7. Partikel-Effekte
+      // 4. Partikel-Effekte
       this.drawParticles(ctx);
 
-      // 8. Große Spielfiguren (70x90px)
+      // 5. Spielerfiguren mit weicher Sprung-Animation
       this.drawPlayers(ctx, players, turnIndex, time);
 
       ctx.restore();
-
-      // 9. Screen-Space Overlays (Kamera-Controls & Minimap)
-      this.drawScreenHUD(ctx, canvas, players, turnIndex);
     }
 
-    // Ozean mit leichten Wellenmustern
-    drawDeepOcean(ctx, time) {
-      ctx.save();
-      const grad = ctx.createRadialGradient(1600, 1100, 200, 1600, 1100, 2200);
-      grad.addColorStop(0, '#0F2744');
-      grad.addColorStop(0.6, '#0B1A2F');
-      grad.addColorStop(1, '#050D18');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, this.width, this.height);
+    drawImageBoard(ctx, time) {
+      if (this.bgImage && this.bgImage.complete && this.bgImage.naturalWidth > 0) {
+        // Sanfter Schatten unter dem Brett
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+        ctx.shadowBlur = 40;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 15;
+        ctx.drawImage(this.bgImage, 0, 0, this.width, this.height);
+        ctx.restore();
 
-      // Dezente animierte Lichtkaustik auf dem Wasser
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
-      ctx.lineWidth = 2.5;
-      for (let y = 100; y < this.height; y += 140) {
-        ctx.beginPath();
-        for (let x = 0; x < this.width; x += 120) {
-          const cy = y + Math.sin(x * 0.01 + time * 1.5 + y) * 14;
-          if (x === 0) ctx.moveTo(x, cy);
-          else ctx.lineTo(x, cy);
-        }
-        ctx.stroke();
+        // Eleganter Leuchtrahmen um das Spielbrett
+        ctx.strokeStyle = 'rgba(250, 204, 21, 0.4)';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(0, 0, this.width, this.height);
+      } else {
+        // Schicker Fallback-Gradient während des Ladens
+        const grad = ctx.createLinearGradient(0, 0, this.width, this.height);
+        grad.addColorStop(0, '#1E1B4B');
+        grad.addColorStop(0.5, '#0F172A');
+        grad.addColorStop(1, '#022C22');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        ctx.fillStyle = '#FDE047';
+        ctx.font = 'bold 28px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Lade Spielbrett 1 (Vier Welten)...', this.width / 2, this.height / 2);
       }
-      ctx.restore();
     }
 
-    // Die 5 klar getrennten Themen-Inseln
-    drawThemedIslands(ctx, time) {
-      // 1. Inselparadies (Oben-Links, X: 160 bis 1100, Y: 140 bis 840)
-      this.drawIslandPlateau(ctx, 160, 150, 940, 700, '#0284C7', '#38BDF8', '#FDE047', '🏝️ INSELPARADIES', () => {
-        // Stranddetails, Palmen & Leuchtturm
-        this.drawLighthouse(ctx, 300, 220, time);
-        this.drawPalmTree(ctx, 750, 480, 1.4);
-        this.drawPalmTree(ctx, 920, 240, 1.2);
-        this.drawPalmTree(ctx, 420, 680, 1.3);
-      });
+    drawImageBoardWaypoints(ctx, starTileIndex, time) {
+      if (!this.tiles || this.tiles.length === 0) return;
 
-      // 2. Dschungel-Tempel (Oben-Mitte/Rechts, X: 1350 bis 2350, Y: 180 bis 820)
-      this.drawIslandPlateau(ctx, 1350, 180, 1000, 640, '#064E3B', '#059669', '#10B981', '🌴 DSCHUNGEL-TEMPEL', () => {
-        // Wasserfall & Tempelruinen
-        this.drawWaterfall(ctx, 1750, 220, time);
-        this.drawStoneRuins(ctx, 2150, 260);
-        this.drawJungleTrees(ctx, 1420, 250);
-        this.drawJungleTrees(ctx, 2280, 620);
-      });
-
-      // 3. Geisterstadt (Rechts, X: 2220 bis 2980, Y: 860 bis 1640)
-      this.drawIslandPlateau(ctx, 2220, 860, 760, 780, '#2E1065', '#581C87', '#9333EA', '👻 GEISTERSTADT', () => {
-        // Saloon, Grabsteine & Nebel
-        this.drawSaloon(ctx, 2600, 950);
-        this.drawGravestones(ctx, 2800, 1380);
-        this.drawLanterns(ctx, 2350, 1050, time);
-        this.drawGhostMist(ctx, 2550, 1250, time);
-      });
-
-      // 4. Die Schule (Unten-Mitte, X: 1400 bis 2300, Y: 1220 bis 1860)
-      this.drawIslandPlateau(ctx, 1400, 1220, 900, 660, '#1E293B', '#334155', '#38BDF8', '🏫 DIE SCHULE (IT-CAMPUS)', () => {
-        // Schulgebäude, Schultafel & Server-Rack
-        this.drawClassroom(ctx, 1750, 1480, time);
-        this.drawSchoolyard(ctx, 2100, 1380);
-      });
-
-      // 5. Pyramidenwüste (Unten-Links, X: 220 bis 1200, Y: 1180 bis 1900)
-      this.drawIslandPlateau(ctx, 220, 1180, 980, 720, '#78350F', '#B45309', '#FBBF24', '🏜️ PYRAMIDENWÜSTE', () => {
-        // Stufenpyramiden, Sphinx & Oase
-        this.drawPyramids(ctx, 500, 1450);
-        this.drawSphinx(ctx, 860, 1320);
-        this.drawOasis(ctx, 680, 1600, time);
-      });
-    }
-
-    drawIslandPlateau(ctx, x, y, w, h, darkColor, midColor, lightColor, title, drawDecor) {
+      // 1. Verbindungs-Leuchtlinie entlang der Schlangenlinie
       ctx.save();
-      // Äußerer Riff-/Küstenschatten
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
       ctx.beginPath();
-      ctx.roundRect(x - 20, y - 10, w + 40, h + 50, 48);
-      ctx.fill();
-
-      // Sand-/Klippensockel
-      ctx.fillStyle = darkColor;
-      ctx.beginPath();
-      ctx.roundRect(x - 12, y - 6, w + 24, h + 36, 42);
-      ctx.fill();
-
-      // Haupt-Plateau
-      const grad = ctx.createLinearGradient(x, y, x, y + h);
-      grad.addColorStop(0, lightColor);
-      grad.addColorStop(0.15, midColor);
-      grad.addColorStop(1, darkColor);
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.roundRect(x, y, w, h, 38);
-      ctx.fill();
-
-      // Glänzender 3D-Kantenrand
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-      ctx.lineWidth = 4;
-      ctx.stroke();
-
-      // Insel-Banner
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-      ctx.beginPath();
-      ctx.roundRect(x + 28, y + 16, 320, 42, 12);
-      ctx.fill();
-      ctx.strokeStyle = lightColor;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '900 16px sans-serif';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(title, x + 44, y + 38);
-
-      // Zusätzliche Dekoration
-      if (drawDecor) drawDecor();
-
-      ctx.restore();
-    }
-
-    // Große Brücken zwischen den Inseln
-    drawBridges(ctx, time) {
-      ctx.save();
-      const bridges = [
-        // 1. Insel -> Dschungel (Feld 10/12 -> 13/14)
-        { x1: 960, y1: 410, x2: 1350, y2: 380, label: 'KÜSTEN-HÄNGEBRÜCKE', color: '#B45309' },
-        // 2. Dschungel -> Geisterstadt (Feld 23 -> 26)
-        { x1: 2210, y1: 670, x2: 2420, y2: 800, label: 'SCHLUCHT-VIADUKT', color: '#475569' },
-        // 3. Geisterstadt -> Schule (Feld 37 -> 39)
-        { x1: 2360, y1: 1480, x2: 2260, y2: 1680, label: 'BOHLENWEG', color: '#334155' },
-        // 4. Schule -> Pyramidenwüste (Feld 48/51 -> 52/53)
-        { x1: 1520, y1: 1650, x2: 1320, y2: 1650, label: 'SANDSTEIN-DAMM', color: '#D97706' },
-        // 5. Pyramidenwüste -> Insel (Feld 65 -> 0)
-        { x1: 520, y1: 1180, x2: 320, y2: 780, label: 'GROSSER INSEL-DAMM', color: '#0284C7' }
-      ];
-
-      bridges.forEach(b => {
-        // Brücken-Balken
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.lineWidth = 36;
-        ctx.beginPath();
-        ctx.moveTo(b.x1, b.y1 + 8);
-        ctx.lineTo(b.x2, b.y2 + 8);
-        ctx.stroke();
-
-        ctx.strokeStyle = b.color;
-        ctx.lineWidth = 32;
-        ctx.beginPath();
-        ctx.moveTo(b.x1, b.y1);
-        ctx.lineTo(b.x2, b.y2);
-        ctx.stroke();
-
-        // Holzplanken-Muster
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 3;
-        ctx.setLineDash([8, 12]);
-        ctx.beginPath();
-        ctx.moveTo(b.x1, b.y1);
-        ctx.lineTo(b.x2, b.y2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      });
-
-      ctx.restore();
-    }
-
-    // Leuchtende Richtungspfeile auf dem Pfad
-    drawPathWithArrows(ctx, time) {
-      ctx.save();
-
-      // 1. Dicker Basispfad
-      ctx.strokeStyle = '#334155';
-      ctx.lineWidth = 26;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      this.tiles.forEach(t => {
-        if (t.next) {
-          t.next.forEach(nId => {
-            const nextT = this.getTile(nId);
-            if (nextT) {
-              ctx.moveTo(t.x, t.y);
-              ctx.lineTo(nextT.x, nextT.y);
-            }
-          });
-        }
-      });
-      ctx.stroke();
-
-      // 2. Goldene Pfad-Kanten
-      ctx.strokeStyle = '#FCD34D';
+      for (let i = 0; i < this.tiles.length; i++) {
+        const t = this.tiles[i];
+        if (i === 0) ctx.moveTo(t.x, t.y);
+        else ctx.lineTo(t.x, t.y);
+      }
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
       ctx.lineWidth = 6;
+      ctx.setLineDash([8, 12]);
+      ctx.lineDashOffset = -time * 24;
       ctx.stroke();
-
-      // 3. Animierte, leuchtende Richtungspfeile zwischen den Feldern
-      this.tiles.forEach(t => {
-        if (t.next) {
-          t.next.forEach(nId => {
-            const nextT = this.getTile(nId);
-            if (!nextT) return;
-
-            const dx = nextT.x - t.x;
-            const dy = nextT.y - t.y;
-            const dist = Math.hypot(dx, dy);
-            if (dist < 40) return;
-
-            const angle = Math.atan2(dy, dx);
-            // Animierter Pfeil wandert auf der Strecke
-            const tOffset = ((time * 0.8) % 1.0);
-            const arrowX = t.x + dx * tOffset;
-            const arrowY = t.y + dy * tOffset;
-
-            ctx.save();
-            ctx.translate(arrowX, arrowY);
-            ctx.rotate(angle);
-            ctx.fillStyle = '#FDE047';
-            ctx.shadowColor = '#FACC15';
-            ctx.shadowBlur = 8;
-            ctx.beginPath();
-            ctx.moveTo(10, 0);
-            ctx.lineTo(-8, -8);
-            ctx.lineTo(-4, 0);
-            ctx.lineTo(-8, 8);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-          });
-        }
-      });
-
       ctx.restore();
-    }
 
-    // =========================================================================
-    // 4. DIE 65x65 PIXEL GROSSEN FELDER (Mit 3D-Look & Nummerierung 1..66)
-    // =========================================================================
-    drawTiles(ctx, starTileIndex, time) {
-      const tileSize = 68; // Große Kacheln!
+      // 2. Dezente interaktive Wegpunkt-Markierungen & Auren
+      const tileRadius = 26;
+      const typeIcons = {
+        start: '🚩',
+        finish: '🏆',
+        blue: '🪙',
+        red: '🛑',
+        shop: '🛒',
+        bank: '🏦',
+        roulette: '🎰',
+        duel: '⚔️',
+        boost: '🚀',
+        swap: '🔄',
+        bowser: '😈',
+        event: '⭐'
+      };
+
+      const typeGlowColors = {
+        start: 'rgba(168, 85, 247, 0.55)',
+        finish: 'rgba(234, 179, 8, 0.85)',
+        blue: 'rgba(59, 130, 246, 0.45)',
+        red: 'rgba(239, 68, 68, 0.45)',
+        shop: 'rgba(16, 185, 129, 0.55)',
+        bank: 'rgba(245, 158, 11, 0.55)',
+        roulette: 'rgba(234, 179, 8, 0.55)',
+        duel: 'rgba(217, 70, 239, 0.55)',
+        boost: 'rgba(249, 115, 22, 0.55)',
+        swap: 'rgba(192, 132, 252, 0.55)',
+        bowser: 'rgba(220, 38, 38, 0.65)',
+        event: 'rgba(14, 165, 233, 0.55)'
+      };
 
       this.tiles.forEach((t, idx) => {
         const isStar = idx === starTileIndex;
+        const glowCol = isStar ? 'rgba(250, 204, 21, 0.9)' : (typeGlowColors[t.type] || 'rgba(255, 255, 255, 0.3)');
+
         ctx.save();
         ctx.translate(t.x, t.y);
 
-        // Bodenschatten der Kachel
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        // Sanfte pulsierende Umrandung
+        const pulse = Math.sin(time * 3 + idx * 0.4) * 3;
         ctx.beginPath();
-        ctx.roundRect(-tileSize / 2 + 4, -tileSize / 2 + 8, tileSize, tileSize, 18);
-        ctx.fill();
+        ctx.arc(0, 0, tileRadius + pulse, 0, Math.PI * 2);
+        ctx.strokeStyle = glowCol;
+        ctx.lineWidth = isStar ? 4 : 2;
+        ctx.shadowColor = glowCol;
+        ctx.shadowBlur = isStar ? 16 : 8;
+        ctx.stroke();
 
-        // Kachelfarben & Icons je nach Feld-Typ
-        let gradTop = '#3B82F6';
-        let gradBottom = '#1D4ED8';
-        let borderColor = '#93C5FD';
-        let icon = '🪙';
-        let subText = '+3';
-
-        if (t.type === 'start') {
-          gradTop = '#8B5CF6';
-          gradBottom = '#5B21B6';
-          borderColor = '#C4B5FD';
-          icon = '🏁';
-          subText = 'START';
-        } else if (t.type === 'blue') {
-          gradTop = '#38BDF8';
-          gradBottom = '#0284C7';
-          borderColor = '#BAE6FD';
-          icon = '🪙';
-          subText = '+3';
-        } else if (t.type === 'red') {
-          gradTop = '#F87171';
-          gradBottom = '#DC2626';
-          borderColor = '#FECACA';
-          icon = '💥';
-          subText = '-3';
-        } else if (t.type === 'bank') {
-          gradTop = '#FBBF24';
-          gradBottom = '#D97706';
-          borderColor = '#FDE68A';
-          icon = '🏦';
-          subText = `${this.jackpotCoins}🪙`;
-        } else if (t.type === 'boost') {
-          gradTop = '#FB923C';
-          gradBottom = '#EA580C';
-          borderColor = '#FFEDD5';
-          icon = '🚀';
-          subText = 'BOOST';
-        } else if (t.type === 'swap') {
-          gradTop = '#C084FC';
-          gradBottom = '#9333EA';
-          borderColor = '#F3E8FF';
-          icon = '🔄';
-          subText = 'TAUSCH';
-        } else if (t.type === 'roulette') {
-          gradTop = '#F59E0B';
-          gradBottom = '#B45309';
-          borderColor = '#FEF3C7';
-          icon = '🎰';
-          subText = 'GLÜCK';
-        } else if (t.type === 'boo') {
-          gradTop = '#6B7280';
-          gradBottom = '#374151';
-          borderColor = '#E5E7EB';
-          icon = '👻';
-          subText = 'BOO';
-        } else if (t.type === 'bowser') {
-          gradTop = '#B91C1C';
-          gradBottom = '#7F1D1D';
-          borderColor = '#FCA5A5';
-          icon = '👹';
-          subText = 'CHAOS';
-        } else if (t.type === 'duel') {
-          gradTop = '#EF4444';
-          gradBottom = '#991B1B';
-          borderColor = '#FECDD3';
-          icon = '⚔️';
-          subText = 'DUELL';
-        } else if (t.type === 'shop') {
-          gradTop = '#34D399';
-          gradBottom = '#059669';
-          borderColor = '#D1FAE5';
-          icon = '🛒';
-          subText = 'SHOP';
-        } else if (t.type === 'event') {
-          gradTop = '#10B981';
-          gradBottom = '#047857';
-          borderColor = '#A7F3D0';
-          icon = '❓';
-          subText = 'EVENT';
-        } else if (t.type === 'fork') {
-          gradTop = '#F59E0B';
-          gradBottom = '#B45309';
-          borderColor = '#FDE68A';
-          icon = '🔀';
-          subText = 'GABEL';
+        // Kleines Aktions-Icon über dem Feld (nur für Spezialfelder)
+        if (t.type !== 'blue' && t.type !== 'red') {
+          const icon = typeIcons[t.type] || '⭐';
+          ctx.font = '14px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(icon, 0, -tileRadius - 10);
         }
-
-        // Kachel-Körper
-        const grad = ctx.createLinearGradient(0, -tileSize / 2, 0, tileSize / 2);
-        grad.addColorStop(0, gradTop);
-        grad.addColorStop(1, gradBottom);
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.roundRect(-tileSize / 2, -tileSize / 2, tileSize, tileSize, 18);
-        ctx.fill();
-
-        // 3D Kantenrahmen
-        ctx.strokeStyle = borderColor;
-        ctx.lineWidth = 3.5;
-        ctx.stroke();
-
-        // Glanz-Effekt
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
-        ctx.beginPath();
-        ctx.roundRect(-tileSize / 2 + 4, -tileSize / 2 + 4, tileSize - 8, tileSize * 0.4, 12);
-        ctx.fill();
-
-        // Kachel Icon & Subtext
-        ctx.font = '24px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(icon, 0, -6);
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '900 11px sans-serif';
-        ctx.shadowColor = 'rgba(0,0,0,0.8)';
-        ctx.shadowBlur = 4;
-        ctx.fillText(subText, 0, 19);
-
-        // Dezente Feld-Nummerierung (1 bis 66)
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-        ctx.beginPath();
-        ctx.roundRect(-tileSize / 2 - 4, -tileSize / 2 - 4, 22, 16, 6);
-        ctx.fill();
-        ctx.strokeStyle = borderColor;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 9px sans-serif';
-        ctx.shadowBlur = 0;
-        ctx.fillText(`${idx + 1}`, -tileSize / 2 + 7, -tileSize / 2 + 4);
 
         ctx.restore();
       });
     }
 
-    // Schwebender Sternblock
+    // =========================================================================
+    // 5. SCHWEBENDER 3D-STERN
+    // =========================================================================
     drawFloatingStar(ctx, starTileIndex, time) {
       const tile = this.getTile(starTileIndex);
       if (!tile) return;
 
-      const starBob = Math.sin(time * 3.5) * 12;
+      const floatY = Math.sin(time * 3.5) * 12;
       const sx = tile.x;
-      const sy = tile.y - 75 + starBob;
+      const sy = tile.y - 48 + floatY;
 
       ctx.save();
-      // Sternen-Glow
-      const glow = ctx.createRadialGradient(sx, sy, 5, sx, sy, 60);
-      glow.addColorStop(0, 'rgba(253, 224, 71, 0.9)');
-      glow.addColorStop(0.5, 'rgba(234, 179, 8, 0.4)');
-      glow.addColorStop(1, 'transparent');
-      ctx.fillStyle = glow;
+
+      // Goldene Boden-Aura auf dem Zielfeld
+      const auraGrad = ctx.createRadialGradient(tile.x, tile.y, 4, tile.x, tile.y, 42);
+      auraGrad.addColorStop(0, 'rgba(250, 204, 21, 0.85)');
+      auraGrad.addColorStop(0.5, 'rgba(245, 158, 11, 0.4)');
+      auraGrad.addColorStop(1, 'rgba(245, 158, 11, 0)');
+      ctx.fillStyle = auraGrad;
       ctx.beginPath();
-      ctx.arc(sx, sy, 60, 0, Math.PI * 2);
+      ctx.ellipse(tile.x, tile.y + 4, 38, 18, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Riesiger Goldener Stern
-      ctx.font = '54px sans-serif';
+      // Strahlende Licht-Säule
+      ctx.fillStyle = 'rgba(253, 224, 71, 0.15)';
+      ctx.beginPath();
+      ctx.moveTo(tile.x - 18, tile.y);
+      ctx.lineTo(sx - 24, sy);
+      ctx.lineTo(sx + 24, sy);
+      ctx.lineTo(tile.x + 18, tile.y);
+      ctx.closePath();
+      ctx.fill();
+
+      // Schwebender Stern (3D Rotations-Effekt)
+      ctx.translate(sx, sy);
+      ctx.shadowColor = '#FBBF24';
+      ctx.shadowBlur = 24;
+
+      const scaleX = Math.cos(time * 2.2);
+      ctx.scale(scaleX, 1);
+
+      ctx.font = '36px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.shadowColor = '#FACC15';
-      ctx.shadowBlur = 18;
-      ctx.fillText('⭐', sx, sy);
+      ctx.fillText('⭐', 0, 0);
 
-      // Preisschild: 20🪙
-      ctx.fillStyle = '#1E293B';
+      ctx.restore();
+
+      // Preis-Badge "20 🪙" unter dem Stern
+      ctx.save();
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
       ctx.beginPath();
-      ctx.roundRect(sx - 36, sy + 32, 72, 22, 8);
+      ctx.roundRect(sx - 34, sy + 28, 68, 20, 8);
       ctx.fill();
       ctx.strokeStyle = '#FACC15';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.5;
       ctx.stroke();
 
       ctx.fillStyle = '#FDE047';
-      ctx.font = 'bold 12px sans-serif';
-      ctx.shadowBlur = 0;
-      ctx.fillText('20 🪙', sx, sy + 43);
-
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('20 🪙', sx, sy + 38);
       ctx.restore();
     }
 
-    // Große Spielfiguren (70x90 Pixel)
+    // =========================================================================
+    // 6. SPIELFIGUREN MIT WEICHER SPRUNG-ANIMATION (HOP-ARC)
+    // =========================================================================
     drawPlayers(ctx, players, turnIndex, time) {
       if (!players || players.length === 0) return;
 
       players.forEach((p, idx) => {
-        const tile = this.getTile(p.boardPosition);
-        if (!tile) return;
+        const curTile = this.getTile(p.boardPosition);
+        if (!curTile) return;
 
-        // Versatz wenn mehrere Spieler auf demselben Feld stehen
-        const sameTilePlayers = players.filter(other => other.boardPosition === p.boardPosition);
-        let px = tile.x;
-        let py = tile.y;
+        let px = curTile.x;
+        let py = curTile.y;
 
-        if (sameTilePlayers.length > 1) {
-          const indexOnTile = sameTilePlayers.indexOf(p);
-          const angle = (indexOnTile / sameTilePlayers.length) * Math.PI * 2;
-          const radius = 32;
-          px = tile.x + Math.cos(angle) * radius;
-          py = tile.y + Math.sin(angle) * radius;
+        // Schrittweise Sprung-Interpolation während des Zugs!
+        if (p.animating && p.animFrom !== undefined && p.animTo !== undefined) {
+          const fromTile = this.getTile(p.animFrom);
+          const toTile = this.getTile(p.animTo);
+          if (fromTile && toTile) {
+            const prog = Math.min(1, Math.max(0, p.animProgress || 0));
+            // Hüpfparabel (Hop-Arc): bis zu 38px in die Höhe springen
+            const hopHeight = Math.sin(prog * Math.PI) * 38;
+            px = fromTile.x + (toTile.x - fromTile.x) * prog;
+            py = fromTile.y + (toTile.y - fromTile.y) * prog - hopHeight;
+          }
+        } else {
+          // Versatz wenn mehrere Spieler auf demselben Feld stehen
+          const sameTilePlayers = players.filter(other => other.boardPosition === p.boardPosition && !other.animating);
+          if (sameTilePlayers.length > 1) {
+            const indexOnTile = sameTilePlayers.indexOf(p);
+            const angle = (indexOnTile / sameTilePlayers.length) * Math.PI * 2;
+            const radius = 24;
+            px += Math.cos(angle) * radius;
+            py += Math.sin(angle) * radius;
+          }
         }
 
         const isMoving = p.animating || false;
         const isActive = idx === turnIndex;
         const isLeader = players.every(o => o.stars <= p.stars);
         const isGiant = (p.giantHeadTimer && p.giantHeadTimer > 0);
+
+        // Aktiver Spieler Puls-Aura
+        if (isActive && !isMoving) {
+          ctx.save();
+          ctx.beginPath();
+          const pPulse = Math.sin(time * 5) * 5;
+          ctx.arc(px, py, 32 + pPulse, 0, Math.PI * 2);
+          ctx.strokeStyle = '#FACC15';
+          ctx.lineWidth = 3;
+          ctx.shadowColor = '#EAB308';
+          ctx.shadowBlur = 14;
+          ctx.stroke();
+          ctx.restore();
+        }
 
         // Sternen-Schutzschild Rendering (rotierende Energie-Aura)
         if (p.hasShield) {
@@ -910,7 +704,6 @@
           ctx.shadowBlur = 15;
           ctx.stroke();
 
-          // Schild-Partikel-Sterne
           ctx.fillStyle = '#FDE047';
           for (let s = 0; s < 3; s++) {
             const starAngle = (s / 3) * Math.PI * 2;
@@ -925,7 +718,7 @@
 
         if (window.CharacterRenderer) {
           window.CharacterRenderer.drawCharacter(ctx, px, py - (isGiant ? 20 : 6), p.archetype || idx, {
-            scale: isGiant ? 2.4 : 1.25, // Riesenkopf-Zauber!
+            scale: isGiant ? 2.4 : 1.25,
             isMoving,
             punching: p.punching || false,
             state: p.emote || (isMoving ? 'walk' : 'idle'),
@@ -937,7 +730,9 @@
       });
     }
 
-    // Partikel-System
+    // =========================================================================
+    // 7. PARTIKEL-SYSTEM
+    // =========================================================================
     spawnParticles(x, y, color, count = 12, speed = 80, life = 0.5) {
       for (let i = 0; i < count; i++) {
         const angle = Math.random() * Math.PI * 2;
@@ -974,238 +769,106 @@
     }
 
     // =========================================================================
-    // 5. SCREEN-SPACE HUD (Kamera-Controls Pill & Minimap)
+    // 8. KLASSISCHE FALLBACK-ROUTINEN (FÜR 5-INSELN BOARD)
     // =========================================================================
-    drawScreenHUD(ctx, canvas, players, turnIndex) {
-      ctx.save();
-
-      // 1. Kamera-Controls Pill (Unten-Rechts)
-      const pillW = 260;
-      const pillH = 44;
-      const pillX = canvas.width - pillW - 20;
-      const pillY = canvas.height - pillH - 20;
-
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-      ctx.strokeStyle = '#38BDF8';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.roundRect(pillX, pillY, pillW, pillH, 14);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const zoomText = `🔍 Zoom: ${Math.round(this.camera.zoom * 100)}% | [M] Karte`;
-      ctx.fillText(zoomText, pillX + pillW / 2, pillY + pillH / 2);
-
-      // 2. Minimap (Oben-Rechts)
-      const mmW = 190;
-      const mmH = 130;
-      const mmX = canvas.width - mmW - 20;
-      const mmY = 20;
-
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-      ctx.strokeStyle = '#475569';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(mmX, mmY, mmW, mmH, 12);
-      ctx.fill();
-      ctx.stroke();
-
-      const scaleX = mmW / this.width;
-      const scaleY = mmH / this.height;
-
-      // Minimap Kacheln
-      this.tiles.forEach(t => {
-        ctx.fillStyle = t.id === this.starTileIndex ? '#FACC15' : '#64748B';
+    drawDeepOcean(ctx, time) {
+      ctx.fillStyle = '#0F172A';
+      ctx.fillRect(0, 0, this.width, this.height);
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
+      ctx.lineWidth = 1;
+      const gridSize = 120;
+      for (let x = 0; x < this.width; x += gridSize) {
         ctx.beginPath();
-        ctx.arc(mmX + t.x * scaleX, mmY + t.y * scaleY, t.id === this.starTileIndex ? 3.5 : 2, 0, Math.PI * 2);
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, this.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < this.height; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(this.width, y);
+        ctx.stroke();
+      }
+    }
+
+    drawThemedIslands(ctx, time) {
+      const islands = [
+        { name: 'Inselparadies', cx: 620, cy: 520, rx: 520, ry: 400, color: '#0EA5E9', border: '#38BDF8' },
+        { name: 'Dschungel-Tempel', cx: 1850, cy: 480, rx: 500, ry: 380, color: '#059669', border: '#34D399' },
+        { name: 'Geisterstadt', cx: 2600, cy: 1150, rx: 480, ry: 480, color: '#6D28D9', border: '#A78BFA' },
+        { name: 'Die Schule', cx: 1750, cy: 1680, rx: 540, ry: 420, color: '#D97706', border: '#FBBF24' },
+        { name: 'Pyramidenwüste', cx: 650, cy: 1600, rx: 550, ry: 420, color: '#DC2626', border: '#F87171' }
+      ];
+      islands.forEach(isl => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.ellipse(isl.cx, isl.cy, isl.rx, isl.ry, 0, 0, Math.PI * 2);
+        ctx.fillStyle = isl.color + '22';
         ctx.fill();
+        ctx.strokeStyle = isl.border + '66';
+        ctx.lineWidth = 6;
+        ctx.stroke();
+        ctx.restore();
       });
-
-      // Minimap Spieler
-      if (players) {
-        players.forEach((p, idx) => {
-          const tile = this.getTile(p.boardPosition);
-          ctx.fillStyle = p.color || '#EF4444';
-          ctx.beginPath();
-          ctx.arc(mmX + tile.x * scaleX, mmY + tile.y * scaleY, idx === turnIndex ? 4.5 : 3, 0, Math.PI * 2);
-          ctx.fill();
-        });
-      }
-
-      ctx.restore();
     }
 
-    // Deko-Helfer für die 5 Welten
-    drawLighthouse(ctx, x, y, time) {
-      ctx.save();
-      // Lichtstrahl
-      const beamAngle = time * 1.5;
-      const grad = ctx.createRadialGradient(x, y - 50, 5, x, y - 50, 160);
-      grad.addColorStop(0, 'rgba(254, 240, 138, 0.7)');
-      grad.addColorStop(1, 'transparent');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.moveTo(x, y - 50);
-      ctx.arc(x, y - 50, 160, beamAngle - 0.35, beamAngle + 0.35);
-      ctx.closePath();
-      ctx.fill();
-
-      // Turm
-      ctx.fillStyle = '#EF4444';
-      ctx.fillRect(x - 14, y - 50, 28, 50);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(x - 14, y - 38, 28, 12);
-      ctx.fillRect(x - 14, y - 14, 28, 12);
-      ctx.restore();
-    }
-
-    drawPalmTree(ctx, x, y, s = 1.0) {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.scale(s, s);
-      ctx.fillStyle = '#78350F';
-      ctx.fillRect(-5, -45, 10, 45);
-      ctx.fillStyle = '#16A34A';
-      for (let i = 0; i < 5; i++) {
-        const a = (i / 5) * Math.PI * 2;
+    drawBridges(ctx, time) {
+      const bridges = [
+        { p1: { x: 940, y: 430 }, p2: { x: 1250, y: 380 } },
+        { p1: { x: 2160, y: 590 }, p2: { x: 2420, y: 800 } },
+        { p1: { x: 2510, y: 1090 }, p2: { x: 2260, y: 1680 } },
+        { p1: { x: 1520, y: 1490 }, p2: { x: 1320, y: 1650 } },
+        { p1: { x: 800, y: 1470 }, p2: { x: 280, y: 680 } }
+      ];
+      bridges.forEach(b => {
+        ctx.strokeStyle = '#D97706';
+        ctx.lineWidth = 14;
         ctx.beginPath();
-        ctx.ellipse(Math.cos(a) * 22, -45 + Math.sin(a) * 12, 22, 9, a, 0, Math.PI * 2);
+        ctx.moveTo(b.p1.x, b.p1.y);
+        ctx.lineTo(b.p2.x, b.p2.y);
+        ctx.stroke();
+      });
+    }
+
+    drawPathWithArrows(ctx, time) {
+      ctx.save();
+      this.tiles.forEach(t => {
+        if (!t.next) return;
+        t.next.forEach(nId => {
+          const nextTile = this.getTile(nId);
+          if (!nextTile) return;
+          ctx.beginPath();
+          ctx.moveTo(t.x, t.y);
+          ctx.lineTo(nextTile.x, nextTile.y);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+          ctx.lineWidth = 4;
+          ctx.stroke();
+        });
+      });
+      ctx.restore();
+    }
+
+    drawClassicTiles(ctx, starTileIndex, time) {
+      const tileSize = 68;
+      this.tiles.forEach((t, idx) => {
+        const isStar = idx === starTileIndex;
+        ctx.save();
+        ctx.translate(t.x, t.y);
+        ctx.beginPath();
+        ctx.roundRect(-tileSize / 2, -tileSize / 2, tileSize, tileSize, 16);
+        ctx.fillStyle = isStar ? '#FBBF24' : (t.type === 'blue' ? '#3B82F6' : (t.type === 'red' ? '#EF4444' : '#10B981'));
         ctx.fill();
-      }
-      ctx.restore();
-    }
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 3;
+        ctx.stroke();
 
-    drawWaterfall(ctx, x, y, time) {
-      ctx.save();
-      ctx.fillStyle = '#065F46';
-      ctx.fillRect(x - 30, y - 40, 60, 40);
-      ctx.fillStyle = '#38BDF8';
-      const flow = (time * 60) % 20;
-      ctx.fillRect(x - 20, y - 40 + flow, 40, 45);
-      ctx.restore();
-    }
-
-    drawStoneRuins(ctx, x, y) {
-      ctx.save();
-      ctx.fillStyle = '#334155';
-      ctx.fillRect(x - 35, y - 50, 70, 50);
-      ctx.fillStyle = '#64748B';
-      ctx.fillRect(x - 25, y - 40, 50, 40);
-      ctx.restore();
-    }
-
-    drawJungleTrees(ctx, x, y) {
-      this.drawPalmTree(ctx, x, y, 1.2);
-    }
-
-    drawSaloon(ctx, x, y) {
-      ctx.save();
-      ctx.fillStyle = '#451A03';
-      ctx.fillRect(x - 45, y - 60, 90, 60);
-      ctx.fillStyle = '#D97706';
-      ctx.font = 'bold 12px sans-serif';
-      ctx.fillText('SALOON', x, y - 40);
-      ctx.restore();
-    }
-
-    drawGravestones(ctx, x, y) {
-      ctx.save();
-      ctx.fillStyle = '#64748B';
-      ctx.beginPath();
-      ctx.arc(x, y - 20, 14, Math.PI, 0);
-      ctx.lineTo(x + 14, y);
-      ctx.lineTo(x - 14, y);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
-
-    drawLanterns(ctx, x, y, time) {
-      ctx.save();
-      const flicker = Math.sin(time * 14) * 0.15 + 0.85;
-      ctx.fillStyle = `rgba(251, 191, 36, ${flicker})`;
-      ctx.beginPath();
-      ctx.arc(x, y - 25, 12, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    drawGhostMist(ctx, x, y, time) {
-      ctx.save();
-      ctx.fillStyle = 'rgba(168, 85, 247, 0.12)';
-      const mistX = x + Math.sin(time * 1.2) * 40;
-      ctx.beginPath();
-      ctx.arc(mistX, y, 60, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    drawClassroom(ctx, x, y, time) {
-      ctx.save();
-      // Tafel mit Netzwerk-Diagramm
-      ctx.fillStyle = '#064E3B';
-      ctx.fillRect(x - 60, y - 55, 120, 55);
-      ctx.strokeStyle = '#D97706';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(x - 60, y - 55, 120, 55);
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 10px monospace';
-      ctx.fillText('192.168.1.0/24', x, y - 35);
-      ctx.fillText('VLAN 10 | DMZ', x, y - 18);
-      ctx.restore();
-    }
-
-    drawSchoolyard(ctx, x, y) {
-      ctx.save();
-      ctx.fillStyle = '#475569';
-      ctx.fillRect(x - 30, y - 40, 60, 40);
-      ctx.restore();
-    }
-
-    drawPyramids(ctx, x, y) {
-      ctx.save();
-      // Große Stufenpyramide
-      ctx.fillStyle = '#D97706';
-      ctx.beginPath();
-      ctx.moveTo(x, y - 75);
-      ctx.lineTo(x - 70, y);
-      ctx.lineTo(x + 70, y);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = '#F59E0B';
-      ctx.beginPath();
-      ctx.moveTo(x, y - 75);
-      ctx.lineTo(x, y);
-      ctx.lineTo(x + 70, y);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
-
-    drawSphinx(ctx, x, y) {
-      ctx.save();
-      ctx.fillStyle = '#B45309';
-      ctx.fillRect(x - 30, y - 35, 60, 35);
-      ctx.beginPath();
-      ctx.arc(x, y - 45, 18, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    drawOasis(ctx, x, y, time) {
-      ctx.save();
-      ctx.fillStyle = '#0284C7';
-      ctx.beginPath();
-      ctx.ellipse(x, y, 40, 25, 0, 0, Math.PI * 2);
-      ctx.fill();
-      this.drawPalmTree(ctx, x + 25, y, 0.9);
-      ctx.restore();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(t.label || `${idx + 1}`, 0, 0);
+        ctx.restore();
+      });
     }
   }
 

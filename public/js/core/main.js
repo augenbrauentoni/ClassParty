@@ -170,6 +170,26 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCreateRoom = document.getElementById('btn-create-room');
   const inputHostName = document.getElementById('input-host-name');
   const selectRoundsOnline = document.getElementById('select-rounds-online');
+  const selectMaxPlayers = document.getElementById('select-max-players');
+  const toggleEnableBots = document.getElementById('toggle-enable-bots');
+  const containerBotCount = document.getElementById('container-bot-count');
+  const selectBotCount = document.getElementById('select-bot-count');
+  const selectBoard = document.getElementById('select-board');
+  const labelBotStatus = document.getElementById('label-bot-status');
+
+  if (toggleEnableBots) {
+    toggleEnableBots.addEventListener('change', () => {
+      const isEnabled = toggleEnableBots.checked;
+      if (containerBotCount) {
+        containerBotCount.style.display = isEnabled ? 'flex' : 'none';
+      }
+      if (labelBotStatus) {
+        labelBotStatus.textContent = isEnabled
+          ? 'EIN = Freie Plätze werden mit Bots aufgefüllt'
+          : 'AUS = Spiel startet exakt mit anwesenden Menschen';
+      }
+    });
+  }
 
   if (inputHostName) {
     inputHostName.addEventListener('input', () => {
@@ -181,7 +201,25 @@ document.addEventListener('DOMContentLoaded', () => {
     btnCreateRoom.addEventListener('click', () => {
       const name = (inputHostName && inputHostName.value.trim()) || currentSelectedChar.name || 'Spieler 1';
       const rounds = parseInt(selectRoundsOnline ? selectRoundsOnline.value : 10, 10) || 10;
-      net.createRoom(name, rounds, false, null, null, currentSelectedChar.id, currentSelectedChar.avatar);
+      const maxPlayers = parseInt(selectMaxPlayers ? selectMaxPlayers.value : 4, 10) || 4;
+      const enableBots = toggleEnableBots ? toggleEnableBots.checked : true;
+      const botCountVal = selectBotCount ? selectBotCount.value : 'auto';
+      const botCount = (botCountVal === 'auto') ? Math.max(0, maxPlayers - 1) : (parseInt(botCountVal, 10) || 0);
+      const boardId = (selectBoard ? selectBoard.value : 'board_1') || 'board_1';
+
+      net.createRoom(
+        name,
+        rounds,
+        false,
+        null,
+        null,
+        currentSelectedChar.id,
+        currentSelectedChar.avatar,
+        maxPlayers,
+        enableBots,
+        botCount,
+        boardId
+      );
     });
   }
 
@@ -235,6 +273,27 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchServerNetworkInfo();
 
   // Auto-detect room code from URL query parameter (e.g. ?room=ABCD)
+  function syncRoomUrlParam(roomId) {
+    if (!roomId) return;
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('room') !== roomId) {
+        url.searchParams.set('room', roomId);
+        window.history.replaceState({}, '', url.toString());
+      }
+    } catch (e) {}
+  }
+
+  function clearRoomUrlParam() {
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('room')) {
+        url.searchParams.delete('room');
+        window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+      }
+    } catch (e) {}
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   const roomQueryCode = urlParams.get('room');
   if (roomQueryCode && inputJoinCode) {
@@ -254,15 +313,23 @@ document.addEventListener('DOMContentLoaded', () => {
       joinCard.classList.add('ring-2', 'ring-yellow-400', 'shadow-2xl', 'shadow-yellow-400/20');
     }
 
-    setTimeout(() => {
-      if (inputJoinName) {
-        inputJoinName.focus();
-        inputJoinName.select();
-      }
-      if (game && game.showToast) {
-        game.showToast(`🎉 Eingeladen in Raum [${cleanCode}]! Gib deinen Namen ein.`);
-      }
-    }, 450);
+    // Auto-reconnect if returning player with existing session
+    const savedRoom = localStorage.getItem('class_party_active_room');
+    const sessionId = localStorage.getItem('class_party_session_id');
+    if (savedRoom === cleanCode && sessionId) {
+      console.log(`[Auto-Reconnect] Vorherige Sitzung für Raum [${cleanCode}] gefunden. Reconnect läuft...`);
+      net.reconnectRoom(cleanCode);
+    } else {
+      setTimeout(() => {
+        if (inputJoinName) {
+          inputJoinName.focus();
+          inputJoinName.select();
+        }
+        if (game && game.showToast) {
+          game.showToast(`🎉 Eingeladen in Raum [${cleanCode}]! Gib deinen Namen ein.`);
+        }
+      }, 450);
+    }
   }
 
   // Allow pressing Enter in name or code input to join directly
@@ -732,6 +799,8 @@ document.addEventListener('DOMContentLoaded', () => {
         hintEl.innerHTML = `🌐 <span class="text-emerald-400 font-bold">Internet-Tunnel aktiv!</span> Mitschüler können weltweit von jedem Gerät & Netz beitreten.`;
       } else if (currentMode === 'wlan') {
         hintEl.innerHTML = `📶 <span class="text-yellow-300 font-bold">WLAN-Link:</span> Mitschüler im selben WLAN / Handy-Hotspot können direkt beitreten.`;
+      } else if (!isLocalhost) {
+        hintEl.innerHTML = `🌐 <span class="text-emerald-400 font-bold">Cloud-Hosting aktiv!</span> Mitschüler können weltweit von jedem Gerät & Netz direkt beitreten.`;
       } else {
         hintEl.innerHTML = `💻 <span class="text-indigo-300 font-bold">Direkt-Link:</span> Über diesen Link beitreten.`;
       }
@@ -777,6 +846,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   net.on('room_created', ({ roomId, playerIndex, room }) => {
+    syncRoomUrlParam(roomId);
     document.getElementById('online-setup-forms').classList.add('hidden');
     document.getElementById('online-room-lobby').classList.remove('hidden');
     document.getElementById('lobby-room-code-badge').textContent = roomId;
@@ -785,6 +855,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   net.on('room_joined', ({ roomId, playerIndex, room }) => {
+    syncRoomUrlParam(roomId);
     document.getElementById('online-setup-forms').classList.add('hidden');
     document.getElementById('online-room-lobby').classList.remove('hidden');
     document.getElementById('lobby-room-code-badge').textContent = roomId;
@@ -813,6 +884,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
   net.on('join_error', ({ message }) => {
     alert(message);
+  });
+
+  net.on('reconnect_failed', ({ message } = {}) => {
+    console.log('[Auto-Reconnect] Keine Sitzung gefunden:', message);
+    try {
+      localStorage.removeItem('class_party_active_room');
+    } catch (e) {}
+  });
+
+  net.on('start_error', ({ message }) => {
+    alert(`⚠️ Spiel konnte nicht gestartet werden:\n${message}`);
+  });
+
+  net.on('room_reconnected', ({ roomId, playerIndex, room }) => {
+    syncRoomUrlParam(roomId);
+    console.log('✅ Erfolgreich wiederverbunden zu Raum', roomId, 'als Spieler', playerIndex);
+    if (room.state !== 'LOBBY') {
+      game.syncWithRoom(room, playerIndex);
+      game.showToast('✅ Verbindung wiederhergestellt! Willkommen zurück im Spiel.');
+    } else {
+      document.getElementById('online-setup-forms').classList.add('hidden');
+      document.getElementById('online-room-lobby').classList.remove('hidden');
+      document.getElementById('lobby-room-code-badge').textContent = roomId;
+      updateOnlineLobbySlots(room, (playerIndex === 0));
+      updateLobbyShareLink(roomId);
+      game.showToast('✅ Verbindung zur Raum-Lobby wiederhergestellt!');
+    }
+  });
+
+  net.on('player_reconnected', ({ playerIndex, room }) => {
+    const p = room.players && room.players[playerIndex];
+    if (p) {
+      game.showToast(`🟢 ${p.name} ist wieder online!`);
+    }
+    updateOnlineLobbySlots(room, net.isHost);
   });
 
   net.on('room_updated', ({ room }) => {
@@ -903,8 +1009,70 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateOnlineLobbySlots(room, isHost) {
     const slotsContainer = document.getElementById('online-slots-list');
-    if (!slotsContainer) return;
+    if (!slotsContainer || !room) return;
     slotsContainer.innerHTML = '';
+
+    const maxPlayers = room.maxPlayers || 4;
+    const enableBots = (room.enableBots !== false);
+    const humanPlayers = (room.players || []).filter(p => p.type === 'human_online' && p.socketId);
+    const humanCount = humanPlayers.length;
+
+    // Badges oben in der Raum-Lobby aktualisieren
+    const badgePlayers = document.getElementById('lobby-player-count-badge');
+    if (badgePlayers) {
+      badgePlayers.textContent = `👥 ${humanCount} / ${maxPlayers} Spieler`;
+    }
+
+    const badgeBots = document.getElementById('lobby-bots-badge');
+    if (badgeBots) {
+      if (!enableBots) {
+        badgeBots.textContent = '🤖 Bots: AUS (Nur Menschen)';
+        badgeBots.className = 'px-2.5 py-1 rounded-lg text-xs font-black bg-rose-950 text-rose-300 border border-rose-600';
+      } else {
+        const botCount = (room.botCount !== undefined) ? room.botCount : Math.max(0, maxPlayers - humanCount);
+        badgeBots.textContent = `🤖 Bots: EIN (+${botCount} Bots)`;
+        badgeBots.className = 'px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-950 text-emerald-300 border border-emerald-600';
+      }
+    }
+
+    const badgeBoard = document.getElementById('lobby-board-badge');
+    if (badgeBoard) {
+      badgeBoard.textContent = (room.boardId === 'board_classic') ? '🗺️ 5 Inselwelten (Klassisch)' : '🗺️ Spielbrett 1 (Vier Welten)';
+    }
+
+    // Start-Button Validierung & Hinweistext
+    const btnStart = document.getElementById('btn-start-online-game');
+    const startHint = document.getElementById('start-game-hint');
+    if (btnStart) {
+      if (!enableBots) {
+        // Wenn AUS (false): Es werden keinerlei KI-Gegner generiert. Mindestens 2 menschliche Spieler erforderlich!
+        if (humanCount >= 2) {
+          btnStart.disabled = false;
+          btnStart.classList.remove('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+          btnStart.classList.add('cursor-pointer');
+          if (startHint) startHint.textContent = `Bereit! ${humanCount} menschliche Spieler online.`;
+        } else {
+          btnStart.disabled = true;
+          btnStart.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+          btnStart.classList.remove('cursor-pointer');
+          if (startHint) startHint.textContent = 'Mindestens 2 menschliche Spieler erforderlich (oder aktiviere Bots).';
+        }
+      } else {
+        // Wenn EIN (true): Kann auch mit 1 Mensch + X Bots starten
+        const total = humanCount + ((room.botCount !== undefined) ? room.botCount : Math.max(0, maxPlayers - humanCount));
+        if (total >= 2) {
+          btnStart.disabled = false;
+          btnStart.classList.remove('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+          btnStart.classList.add('cursor-pointer');
+          if (startHint) startHint.textContent = `Bereit! Spiel startet mit ${humanCount} Spieler(n) + Bots.`;
+        } else {
+          btnStart.disabled = true;
+          btnStart.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+          btnStart.classList.remove('cursor-pointer');
+          if (startHint) startHint.textContent = 'Mindestens 2 Teilnehmer (Spieler + Bots) erforderlich.';
+        }
+      }
+    }
 
     const btnToggleTeamMode = document.getElementById('btn-toggle-team-mode');
     const teamModeLabel = document.getElementById('team-mode-label');
@@ -921,65 +1089,125 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    room.players.forEach((p, idx) => {
-      const isMe = (idx === net.myPlayerIndex);
-      const isHostPlayer = (idx === 0);
-      const charObj = (window.characterRegistry && p.archetype) ? window.characterRegistry.getById(p.archetype) : null;
-      const avatarSrc = p.avatar || (charObj ? charObj.avatar : 'assets/avatars/char1_pc_schrauber.png');
+    // Spieler-Slots rendern
+    if (!enableBots) {
+      // Wenn Bots AUS: Rendere die menschlichen Spieler und offene Einlade-Plätze bis maxPlayers
+      for (let i = 0; i < maxPlayers; i++) {
+        const human = humanPlayers[i];
+        if (human) {
+          const isMe = (human.socketId === net.socket?.id || i === net.myPlayerIndex);
+          const isHostPlayer = (i === 0);
+          const charObj = (window.characterRegistry && human.archetype) ? window.characterRegistry.getById(human.archetype) : null;
+          const avatarSrc = human.avatar || (charObj ? charObj.avatar : 'assets/avatars/char1_pc_schrauber.png');
 
-      const slotCard = document.createElement('div');
-      slotCard.className = `flex items-center justify-between p-3.5 rounded-2xl border transition shadow-md ${
-        isMe
-          ? 'bg-slate-800/95 border-amber-400 ring-2 ring-amber-400/30'
-          : 'bg-slate-800/70 border-slate-700'
-      }`;
+          const slotCard = document.createElement('div');
+          slotCard.className = `flex items-center justify-between p-3.5 rounded-2xl border transition shadow-md ${
+            isMe ? 'bg-slate-800/95 border-amber-400 ring-2 ring-amber-400/30' : 'bg-slate-800/70 border-slate-700'
+          }`;
 
-      let typeBadge = '';
-      if (isHostPlayer) {
-        typeBadge = `<span class="px-2 py-0.5 rounded text-[10px] bg-amber-500 text-slate-950 font-black shadow">HOST</span>`;
-      } else if (p.type === 'human_online') {
-        typeBadge = `<span class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 font-bold border border-emerald-600">Online</span>`;
-      } else {
-        typeBadge = `<span class="px-2 py-0.5 rounded text-[10px] bg-slate-700 text-slate-300 font-bold">Bot</span>`;
+          slotCard.innerHTML = `
+            <div class="flex items-center gap-3">
+              <div class="relative w-12 h-12 rounded-xl border-2 overflow-hidden flex-shrink-0 shadow bg-slate-950 flex items-center justify-center" style="border-color: ${human.color}">
+                <img src="${avatarSrc}" alt="${human.name}" class="w-full h-full object-cover">
+                <span class="absolute -bottom-1 -right-1 text-[8px] px-1 rounded-full font-black text-white bg-slate-900 border" style="border-color: ${human.color}">P${i + 1}</span>
+              </div>
+              <div>
+                <div class="font-extrabold text-sm text-white flex items-center gap-2">
+                  <span class="truncate max-w-[140px]">${human.name}</span>
+                  ${isMe ? '<span class="px-2 py-0.5 rounded text-[10px] bg-yellow-400 text-slate-950 font-black shadow animate-pulse">DU</span>' : ''}
+                  ${isHostPlayer ? '<span class="px-2 py-0.5 rounded text-[10px] bg-amber-500 text-slate-950 font-black shadow">HOST</span>' : '<span class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 font-bold border border-emerald-600">Online</span>'}
+                </div>
+                <div class="text-xs text-slate-300 font-semibold flex items-center gap-1.5 mt-0.5">
+                  <span class="text-amber-300 font-bold">${charObj ? charObj.name : (human.archetype || 'Held')}</span>
+                  <span class="text-slate-500">•</span>
+                  <span class="text-slate-400">${human.colorName}</span>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center">
+              <span class="text-xs font-bold text-emerald-400 flex items-center gap-1">● Bereit</span>
+            </div>
+          `;
+          slotsContainer.appendChild(slotCard);
+        } else {
+          // Offener Platz
+          const emptyCard = document.createElement('div');
+          emptyCard.className = 'flex items-center justify-between p-3.5 rounded-2xl border-2 border-dashed border-slate-700/80 bg-slate-900/40 text-slate-400';
+          emptyCard.innerHTML = `
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-xl border border-dashed border-slate-600/70 flex items-center justify-center text-xl text-slate-500 bg-slate-950/40">
+                👤
+              </div>
+              <div>
+                <div class="font-bold text-xs text-slate-300">Freier Spieler-Platz (Slot ${i + 1})</div>
+                <div class="text-[11px] text-slate-500 font-sans">Wartet auf Klassenkamerad per Link...</div>
+              </div>
+            </div>
+            <span class="text-[10px] px-2.5 py-1 rounded-lg bg-slate-800 text-slate-400 border border-slate-700 font-mono">Offen</span>
+          `;
+          slotsContainer.appendChild(emptyCard);
+        }
       }
+    } else {
+      // Wenn Bots EIN: Zeige Slots bis maxPlayers
+      const slotsToShow = (room.players || []).slice(0, maxPlayers);
+      slotsToShow.forEach((p, idx) => {
+        const isMe = (idx === net.myPlayerIndex);
+        const isHostPlayer = (idx === 0);
+        const charObj = (window.characterRegistry && p.archetype) ? window.characterRegistry.getById(p.archetype) : null;
+        const avatarSrc = p.avatar || (charObj ? charObj.avatar : 'assets/avatars/char1_pc_schrauber.png');
 
-      const teamDetails = room.isTeamMode
-        ? `<div class="text-[11px] text-purple-300 font-semibold mt-0.5">👥 A: ${p.playerA || p.name} & B: ${p.playerB || 'Spieler ' + (idx + 1) + 'B'}</div>`
-        : '';
+        const slotCard = document.createElement('div');
+        slotCard.className = `flex items-center justify-between p-3.5 rounded-2xl border transition shadow-md ${
+          isMe ? 'bg-slate-800/95 border-amber-400 ring-2 ring-amber-400/30' : 'bg-slate-800/70 border-slate-700'
+        }`;
 
-      slotCard.innerHTML = `
-        <div class="flex items-center gap-3">
-          <div class="relative w-12 h-12 rounded-xl border-2 overflow-hidden flex-shrink-0 shadow bg-slate-950 flex items-center justify-center" style="border-color: ${p.color}">
-            <img src="${avatarSrc}" alt="${p.name}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-            <div class="w-full h-full hidden items-center justify-center font-bold text-white text-xs" style="background-color: ${p.color}">P${idx + 1}</div>
-            <span class="absolute -bottom-1 -right-1 text-[8px] px-1 rounded-full font-black text-white bg-slate-900 border" style="border-color: ${p.color}">P${idx + 1}</span>
-          </div>
-          <div>
-            <div class="font-extrabold text-sm text-white flex items-center gap-2">
-              <span class="truncate max-w-[120px] sm:max-w-[180px]">${p.name}</span>
-              ${isMe ? '<span class="px-2 py-0.5 rounded text-[10px] bg-yellow-400 text-slate-950 font-black shadow animate-pulse">DU</span>' : ''}
-              ${typeBadge}
+        let typeBadge = '';
+        if (isHostPlayer) {
+          typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-amber-500 text-slate-950 font-black shadow">HOST</span>';
+        } else if (p.type === 'human_online') {
+          typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 font-bold border border-emerald-600">Online</span>';
+        } else {
+          typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-slate-700 text-slate-300 font-bold">Bot</span>';
+        }
+
+        const teamDetails = room.isTeamMode
+          ? `<div class="text-[11px] text-purple-300 font-semibold mt-0.5">👥 A: ${p.playerA || p.name} & B: ${p.playerB || 'Spieler ' + (idx + 1) + 'B'}</div>`
+          : '';
+
+        slotCard.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="relative w-12 h-12 rounded-xl border-2 overflow-hidden flex-shrink-0 shadow bg-slate-950 flex items-center justify-center" style="border-color: ${p.color}">
+              <img src="${avatarSrc}" alt="${p.name}" class="w-full h-full object-cover">
+              <span class="absolute -bottom-1 -right-1 text-[8px] px-1 rounded-full font-black text-white bg-slate-900 border" style="border-color: ${p.color}">P${idx + 1}</span>
             </div>
-            <div class="text-xs text-slate-300 font-semibold flex items-center gap-1.5 mt-0.5">
-              <span class="text-amber-300 font-bold">${charObj ? charObj.name : (p.archetype || 'Held')}</span>
-              <span class="text-slate-500">•</span>
-              <span class="text-slate-400">Farbe: ${p.colorName}</span>
+            <div>
+              <div class="font-extrabold text-sm text-white flex items-center gap-2">
+                <span class="truncate max-w-[120px] sm:max-w-[180px]">${p.name}</span>
+                ${isMe ? '<span class="px-2 py-0.5 rounded text-[10px] bg-yellow-400 text-slate-950 font-black shadow animate-pulse">DU</span>' : ''}
+                ${typeBadge}
+              </div>
+              <div class="text-xs text-slate-300 font-semibold flex items-center gap-1.5 mt-0.5">
+                <span class="text-amber-300 font-bold">${charObj ? charObj.name : (p.archetype || 'Held')}</span>
+                <span class="text-slate-500">•</span>
+                <span class="text-slate-400">${p.colorName}</span>
+              </div>
+              ${teamDetails}
             </div>
-            ${teamDetails}
           </div>
-        </div>
-        <div class="flex items-center gap-1.5">
-          ${
-            isHost && idx !== 0
-              ? `<button class="btn-toggle-slot text-xs px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 transition font-bold" data-slot="${idx}">
-                  ${p.type === 'bot' ? 'Als Mensch' : 'Als Bot'}
-                </button>`
-              : ''
-          }
-        </div>
-      `;
-      slotsContainer.appendChild(slotCard);
-    });
+          <div class="flex items-center gap-1.5">
+            ${
+              isHost && idx !== 0
+                ? `<button class="btn-toggle-slot text-xs px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 transition font-bold" data-slot="${idx}">
+                    ${p.type === 'bot' ? 'Als Mensch' : 'Als Bot'}
+                  </button>`
+                : ''
+            }
+          </div>
+        `;
+        slotsContainer.appendChild(slotCard);
+      });
+    }
 
     if (isHost) {
       document.querySelectorAll('.btn-toggle-slot').forEach(btn => {
@@ -1270,15 +1498,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnConfirmLeave && leaveModal) {
     btnConfirmLeave.addEventListener('click', () => {
       leaveModal.classList.add('hidden');
+      try {
+        localStorage.removeItem('class_party_active_room');
+      } catch (e) {}
+      clearRoomUrlParam();
       game.leaveGame();
     });
   }
-
-  window.addEventListener('beforeunload', () => {
-    if (!game.isLocalMode && net) {
-      net.sendLeaveRoom();
-    }
-  });
 
   // Handle Gameplay Keyboard Inputs
   const handleKey = (code, isDown) => {

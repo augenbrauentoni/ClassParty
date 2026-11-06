@@ -71,13 +71,17 @@ class NetworkManager {
       return;
     }
 
-    // 2. Falls lokal oder auf eigenem Server, Socket.io versuchen
+    // 2. Falls lokal oder auf Cloud-Server (Render.com), Socket.io dynamisch mit der Host-Domain verbinden
     if (typeof io !== 'undefined') {
       try {
-        this.socket = io({
-          timeout: 4000,
+        const socketTargetUrl = (typeof window !== 'undefined' && window.location && window.location.origin)
+          ? window.location.origin
+          : undefined;
+
+        this.socket = io(socketTargetUrl, {
+          timeout: 6000,
           reconnection: true,
-          reconnectionAttempts: 4,
+          reconnectionAttempts: 8,
           reconnectionDelay: 1000,
           transports: ['websocket', 'polling'],
           extraHeaders: {
@@ -117,8 +121,9 @@ class NetworkManager {
 
     this.socket.on('connect', () => {
       this.networkType = 'socket';
-      console.log('✅ Verbunden über Node.js Socket.io Server');
-      this.updateNetworkBadge('🟢 Socket.io & WebRTC aktiv');
+      const isCloud = window.location.hostname && !['localhost', '127.0.0.1'].includes(window.location.hostname);
+      console.log('✅ Verbunden über Node.js Socket.io Server', isCloud ? `(Cloud Online: ${window.location.origin})` : '(Lokal)');
+      this.updateNetworkBadge(isCloud ? '🌐 Cloud Online (Render)' : '🟢 Socket.io Server aktiv');
     });
 
     this.socket.on('connect_error', () => {
@@ -128,7 +133,8 @@ class NetworkManager {
     });
 
     const events = [
-      'room_created', 'room_joined', 'join_error', 'room_updated',
+      'room_created', 'room_joined', 'room_reconnected', 'player_reconnected', 'start_error', 'reconnect_failed',
+      'join_error', 'room_updated',
       'game_started', 'dice_rolled', 'player_moved', 'star_bought',
       'turn_advanced', 'minigame_intro', 'minigame_action_sync',
       'minigame_state_sync', 'minigame_results', 'new_round_started',
@@ -144,10 +150,16 @@ class NetworkManager {
           this.roomId = data.roomId;
           this.myPlayerIndex = data.playerIndex;
           this.isHost = true;
-        } else if (ev === 'room_joined') {
+          if (data.roomId) {
+            localStorage.setItem('class_party_active_room', data.roomId);
+          }
+        } else if (ev === 'room_joined' || ev === 'room_reconnected') {
           this.roomId = data.roomId;
           this.myPlayerIndex = data.playerIndex;
-          this.isHost = false;
+          this.isHost = (data.playerIndex === 0);
+          if (data.roomId) {
+            localStorage.setItem('class_party_active_room', data.roomId);
+          }
         }
         this.emit(ev, data);
       });
@@ -620,18 +632,34 @@ class NetworkManager {
   // 🎮 ACTIONS (Öffentliche Methoden für game.js & main.js) 🎮
   // ===================================================================
 
-  createRoom(playerName, maxRounds, isTeamMode = false, playerA = null, playerB = null, archetype = null, avatar = null) {
+  getSessionId() {
+    let sid = localStorage.getItem('class_party_session_id');
+    if (!sid) {
+      sid = 'cp_sess_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36);
+      localStorage.setItem('class_party_session_id', sid);
+    }
+    return sid;
+  }
+
+  createRoom(playerName, maxRounds, isTeamMode = false, playerA = null, playerB = null, archetype = null, avatar = null, maxPlayers = 4, enableBots = true, botCount = 0, boardId = 'board_1') {
     this.isLocalMode = false;
     const roomCode = this.generateRoomCode();
     this.roomId = roomCode;
+    const sessionId = this.getSessionId();
 
     if (this.socket && this.socket.connected) {
       this.networkType = 'socket';
-      this.socket.emit('create_room', { playerName, maxRounds, isTeamMode, playerA, playerB, archetype, avatar });
+      this.socket.emit('create_room', { playerName, maxRounds, isTeamMode, playerA, playerB, archetype, avatar, sessionId, maxPlayers, enableBots, botCount, boardId });
     } else {
       // 100% Serverless P2P Host
       this.networkType = 'peerjs';
       this.initPeerJSHost(roomCode, playerName, maxRounds, isTeamMode, playerA, playerB, archetype, avatar);
+      if (this.p2pRoom) {
+        this.p2pRoom.maxPlayers = maxPlayers;
+        this.p2pRoom.enableBots = enableBots;
+        this.p2pRoom.botCount = botCount;
+        this.p2pRoom.boardId = boardId;
+      }
     }
   }
 
@@ -639,14 +667,44 @@ class NetworkManager {
     this.isLocalMode = false;
     const code = (roomId || '').trim().toUpperCase();
     this.roomId = code;
+    const sessionId = this.getSessionId();
 
     if (this.socket && this.socket.connected) {
       this.networkType = 'socket';
-      this.socket.emit('join_room', { roomId: code, playerName, archetype, avatar });
+      this.socket.emit('join_room', { roomId: code, playerName, archetype, avatar, sessionId });
     } else {
       // 100% Serverless P2P Client
       this.networkType = 'peerjs';
       this.initPeerJSClient(code, playerName, archetype, avatar);
+    }
+  }
+
+  reconnectRoom(roomId) {
+    const code = (roomId || '').trim().toUpperCase();
+    const sessionId = this.getSessionId();
+    if (!code || !sessionId) return;
+    this.roomId = code;
+
+    const doReconnect = () => {
+      this.networkType = 'socket';
+      this.socket.emit('reconnect_room', { roomId: code, sessionId });
+    };
+
+    if (this.socket && this.socket.connected) {
+      doReconnect();
+    } else if (this.socket) {
+      this.socket.once('connect', doReconnect);
+    }
+  }
+
+  updateLobbySettings(settings = {}) {
+    if (this.isLocalMode) return;
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('update_lobby_settings', settings);
+    } else if (this.p2pRoom && this.isHost) {
+      Object.assign(this.p2pRoom, settings);
+      this.broadcastP2P('room_updated', { room: this.p2pRoom });
+      this.emit('room_updated', { room: this.p2pRoom });
     }
   }
 
@@ -732,6 +790,29 @@ class NetworkManager {
     if (this.socket && this.socket.connected) {
       this.socket.emit('start_game');
     } else if (this.p2pRoom && this.isHost) {
+      const humanPlayers = this.p2pRoom.players.filter(p => p.type === 'human_online');
+
+      if (this.p2pRoom.enableBots === false) {
+        if (humanPlayers.length < 2) {
+          this.emit('start_error', { message: 'Mindestens 2 menschliche Spieler erforderlich (oder aktiviere Bots).' });
+          return;
+        }
+        this.p2pRoom.players = humanPlayers;
+      } else {
+        const maxSlots = this.p2pRoom.maxPlayers || 4;
+        const desiredBots = (this.p2pRoom.botCount !== undefined)
+          ? Math.min(this.p2pRoom.botCount, maxSlots - humanPlayers.length)
+          : (maxSlots - humanPlayers.length);
+        const botsToAdd = Math.max(0, desiredBots);
+        const existingBots = this.p2pRoom.players.filter(p => p.type === 'bot').slice(0, botsToAdd);
+        this.p2pRoom.players = [...humanPlayers, ...existingBots];
+      }
+
+      this.p2pRoom.players.forEach((p, idx) => {
+        p.slotIndex = idx;
+        p.id = `player_${idx}`;
+      });
+
       this.p2pRoom.state = 'BOARD_TURN';
       this.p2pRoom.round = 1;
       this.p2pRoom.turnIndex = 0;

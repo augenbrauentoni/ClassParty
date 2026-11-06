@@ -180,21 +180,71 @@
               <span>🏠</span> Neuen Raum erstellen
             </div>
             <p class="text-xs text-slate-400 font-sans">
-              Erstelle einen Raum und lade Mitschüler über den 4-stelligen Code ein. Leere Plätze werden mit Bots aufgefüllt.
+              Erstelle einen Raum und lade Mitschüler über den 4-stelligen Code ein.
             </p>
             <div>
               <label class="block text-xs font-semibold text-slate-300 mb-1">Dein Spielername</label>
               <input id="input-host-name" type="text" maxlength="14" value="Spieler 1" class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-sans">
             </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Anzahl Runden</label>
+                <select id="select-rounds-online" class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-sans">
+                  <option value="5">5 Runden (Schnell / Test)</option>
+                  <option value="10" selected>10 Runden (Empfohlen)</option>
+                  <option value="15">15 Runden (Klassisch)</option>
+                  <option value="20">20 Runden (Große Party)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Max. Spieler (Lobby-Limit)</label>
+                <select id="select-max-players" class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-sans">
+                  <option value="2">2 Spieler (Duell)</option>
+                  <option value="3">3 Spieler</option>
+                  <option value="4" selected>4 Spieler (Standard)</option>
+                  <option value="5">5 Spieler</option>
+                  <option value="6">6 Spieler</option>
+                  <option value="7">7 Spieler</option>
+                  <option value="8">8 Spieler (Ganze Klasse)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- 🤖 KI-BOTS STEUERUNG (STRIKTE TRENNUNG) -->
+            <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-700/80 flex flex-col gap-2.5 shadow-inner">
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-xs font-black text-amber-300 block">🤖 KI-Gegner (Bots)</span>
+                  <span class="text-[11px] text-slate-400 block" id="label-bot-status">AUS = Spiel startet exakt mit anwesenden Menschen</span>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" id="toggle-enable-bots" class="sr-only peer" checked>
+                  <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
+              </div>
+              <div id="container-bot-count" class="flex flex-col gap-1 pt-1 border-t border-slate-800">
+                <label class="text-[11px] text-slate-300 font-semibold">Freie Plätze mit Bots auffüllen:</label>
+                <select id="select-bot-count" class="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-sans">
+                  <option value="auto" selected>Alle freien Plätze auffüllen</option>
+                  <option value="1">1 KI-Gegner</option>
+                  <option value="2">2 KI-Gegner</option>
+                  <option value="3">3 KI-Gegner</option>
+                  <option value="4">4 KI-Gegner</option>
+                  <option value="0">Keine zusätzlichen Bots</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- 🗺️ MODULARE SPIELBRETT-AUSWAHL -->
             <div>
-              <label class="block text-xs font-semibold text-slate-300 mb-1">Anzahl Runden</label>
-              <select id="select-rounds-online" class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-sans">
-                <option value="5">5 Runden (Schnell / Test)</option>
-                <option value="10" selected>10 Runden (Empfohlen)</option>
-                <option value="15">15 Runden (Klassisch)</option>
-                <option value="20">20 Runden (Große Party)</option>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">🗺️ Spielbrett wählen</label>
+              <select id="select-board" class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border-2 border-amber-500/50 text-amber-300 font-black focus:outline-none focus:border-amber-400 font-sans shadow-md">
+                <option value="board_1" selected>⭐ Spielbrett 1: Vier Welten (Ägypten, Ozean, Weltraum, Stadt)</option>
+                <option value="board_classic">🏝️ 5 Inselwelten (Klassisch)</option>
               </select>
             </div>
+
             <button id="btn-create-room" class="mt-2 w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-extrabold shadow-lg shadow-emerald-600/30 transition transform active:scale-95">
               Raum erstellen 🚀
             </button>
@@ -232,14 +282,29 @@
                 <span id="lobby-room-code-badge" class="text-3xl font-black text-amber-300 tracking-wider font-mono">----</span>
                 <span class="text-xs px-2.5 py-1 rounded bg-slate-700 text-slate-300">Teile diesen Code!</span>
               </div>
+              <!-- Status-Chips für Spielerlimit, Bots und gewähltes Spielbrett -->
+              <div class="flex flex-wrap items-center gap-2 mt-2">
+                <span id="lobby-player-count-badge" class="px-2.5 py-1 rounded-lg text-xs font-black bg-blue-950 text-blue-300 border border-blue-600">
+                  👥 1 / 4 Spieler
+                </span>
+                <span id="lobby-bots-badge" class="px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-950 text-emerald-300 border border-emerald-600">
+                  🤖 Bots: EIN
+                </span>
+                <span id="lobby-board-badge" class="px-2.5 py-1 rounded-lg text-xs font-black bg-amber-950 text-amber-300 border border-amber-500">
+                  🗺️ Spielbrett 1 (Vier Welten)
+                </span>
+              </div>
             </div>
-            <div class="flex items-center gap-3">
-              <button id="btn-toggle-team-mode" class="px-4 py-3 rounded-xl bg-purple-700 hover:bg-purple-600 text-white font-bold text-xs flex items-center gap-2 border border-purple-400 shadow transition active:scale-95">
-                <span>👥</span> <span id="team-mode-label">Team-Modus: AUS (Einzelspieler)</span>
-              </button>
-              <button id="btn-start-online-game" class="px-8 py-3.5 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-extrabold text-lg shadow-xl shadow-green-500/25 transition transform active:scale-95">
-                Spiel starten ▶️
-              </button>
+            <div class="flex flex-col items-end gap-2">
+              <div class="flex items-center gap-3">
+                <button id="btn-toggle-team-mode" class="px-4 py-3 rounded-xl bg-purple-700 hover:bg-purple-600 text-white font-bold text-xs flex items-center gap-2 border border-purple-400 shadow transition active:scale-95">
+                  <span>👥</span> <span id="team-mode-label">Team-Modus: AUS (Einzelspieler)</span>
+                </button>
+                <button id="btn-start-online-game" class="px-8 py-3.5 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-extrabold text-lg shadow-xl shadow-green-500/25 transition transform active:scale-95 cursor-pointer">
+                  Spiel starten ▶️
+                </button>
+              </div>
+              <div id="start-game-hint" class="text-xs text-amber-300 font-bold text-right"></div>
             </div>
           </div>
 
@@ -1133,6 +1198,7 @@
   <script src="js/minigames/questionBank.js"></script>
   <script src="js/board/duelEngine.js"></script>
   <script src="js/core/qrcode.js"></script>
+  <script src="js/board/boardManager.js"></script>
   <script src="js/board/board.js"></script>
   <script src="js/board/dice.js"></script>
   <script src="js/core/bot.js"></script>
